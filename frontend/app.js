@@ -1,3 +1,13 @@
+(() => {
+  if (!document.querySelector('link[data-dmc-fine-tuning]')) {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'fine-tuning.css';
+    link.dataset.dmcFineTuning = 'true';
+    document.head.appendChild(link);
+  }
+})();
+
 document.addEventListener('DOMContentLoaded', () => {
   const loginForm = document.getElementById('loginForm');
   if (loginForm) {
