@@ -1,0 +1,88 @@
+/* Ajustes finales de fidelidad respecto a la plataforma DMC real. */
+:root{
+  --dmc-rail:78px;
+  --dmc-sidebar-open:361px;
+  --dmc-content-shift:283px;
+}
+
+/* La cabecera SIEMPRE conserva su posición. Solo el contenido inferior se mueve. */
+.dashboard-page .page-column{
+  margin-left:var(--dmc-rail)!important;
+  width:calc(100% - var(--dmc-rail))!important;
+  transition:none!important;
+}
+.dashboard-page .topbar{
+  margin-left:0!important;
+  width:100%!important;
+  transform:none!important;
+  transition:none!important;
+}
+.dashboard-page .main-content{
+  margin-left:0!important;
+  width:100%!important;
+  transition:margin-left .24s ease,width .24s ease!important;
+}
+.dashboard-page.sidebar-expanded .main-content{
+  margin-left:var(--dmc-content-shift)!important;
+  width:calc(100% - var(--dmc-content-shift))!important;
+}
+
+/* La versión anterior se veía ligeramente ampliada. Reducimos solo la escala visual,
+   sin alterar las proporciones principales de la plataforma. */
+@media (min-width:981px){
+  .dashboard-page .topbar{height:70px!important;padding:0 17px 0 14px!important}
+  .dashboard-page .sidebar{padding-top:70px!important}
+  .dashboard-page .menu-toggle{height:70px!important}
+
+  .dashboard-page .brand-top img{width:84px!important;height:43px!important}
+  .dashboard-page .brand-top .brand-divider{height:34px!important;margin:0 9px!important}
+  .dashboard-page .brand-top .brand-word{font-size:27px!important}
+
+  .dashboard-page .top-nav{gap:12px!important;margin-left:16px!important;font-size:12px!important}
+  .dashboard-page .nav-dropdown{top:62px!important}
+  .dashboard-page .nav-dropdown a{font-size:14px!important;padding:11px 16px!important}
+
+  .dashboard-page .icon-btn{font-size:19px!important}
+  .dashboard-page .profile-button{min-height:68px!important}
+  .dashboard-page .avatar{width:39px!important;height:39px!important;font-size:22px!important}
+  .dashboard-page .profile-menu{top:61px!important}
+  .dashboard-page .profile-menu>*{min-height:42px!important;font-size:14px!important}
+
+  .dashboard-page .side-item{height:49px!important;font-size:15px!important;padding:0 25px!important}
+  .dashboard-page .side-item i:first-child{font-size:20px!important}
+  .dashboard-page .sidebar.collapsed .side-item:hover:after{height:49px!important;font-size:14px!important}
+
+  .dashboard-page .main-content{padding:16px 16px 0!important}
+  .dashboard-page .profile-hero{height:190px!important;padding:22px 24px!important}
+  .dashboard-page .hero-avatar{width:98px!important;height:98px!important;font-size:54px!important;margin-right:23px!important}
+  .dashboard-page .hero-title-row h1{font-size:20px!important}
+  .dashboard-page .message-link{font-size:13px!important}
+  .dashboard-page .customize-btn{right:18px!important;bottom:18px!important;font-size:12px!important;padding:8px 13px!important}
+
+  .dashboard-page .recent-panel{margin-top:16px!important;min-height:270px!important;padding:14px 15px 22px!important}
+  .dashboard-page .recent-panel h2{font-size:13px!important;margin-bottom:21px!important}
+  .dashboard-page .course-banner{height:112px!important;padding-top:7px!important}
+  .dashboard-page .course-banner small{font-size:16px!important}
+  .dashboard-page .course-banner strong{font-size:28px!important}
+  .dashboard-page .course-text{font-size:12px!important}
+
+  .dashboard-page .site-footer{margin-top:55px!important;min-height:250px!important;padding:34px 31px 48px!important}
+  .dashboard-page .contact-block p{font-size:15px!important}
+  .dashboard-page .contact-block a{font-size:13px!important}
+  .dashboard-page .socials a{width:35px!important;height:35px!important;font-size:16px!important}
+  .dashboard-page .app-download{font-size:13px!important}
+  .dashboard-page .rights-bar{font-size:13px!important;padding:12px!important}
+
+  .dashboard-page .course-head,.dashboard-page .internal-head{padding:20px 21px!important;min-height:112px!important}
+  .dashboard-page .course-head h1,.dashboard-page .internal-head h1{font-size:19px!important}
+  .dashboard-page .enrol-panel,.dashboard-page .internal-panel{margin-top:16px!important;padding:18px 20px 32px!important}
+  .dashboard-page .enrol-panel h2,.dashboard-page .internal-title{font-size:28px!important}
+}
+
+@media(max-width:650px){
+  :root{--dmc-rail:66px;--dmc-content-shift:0px}
+  .dashboard-page.sidebar-expanded .main-content{
+    margin-left:0!important;
+    width:100%!important;
+  }
+}
