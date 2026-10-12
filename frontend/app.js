@@ -9,51 +9,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const sidebar = document.getElementById('sidebar');
   const menuToggle = document.getElementById('menuToggle');
-  const pageColumn = document.querySelector('.page-column');
-  const mainContent = document.querySelector('.main-content');
 
-  const syncSidebarLayout = () => {
-    if (!sidebar || !pageColumn) return;
-
+  const syncSidebarClass = () => {
+    if (!sidebar) return;
     const expanded = !sidebar.classList.contains('collapsed');
-
-    // La cabecera superior se mantiene siempre en el mismo lugar.
-    // Solo el contenido debajo de la cabecera se encoge y se desplaza,
-    // igual que en la plataforma original de DMC.
-    pageColumn.style.setProperty('margin-left', window.innerWidth <= 650 ? '66px' : '78px', 'important');
-    pageColumn.style.setProperty('width', window.innerWidth <= 650 ? 'calc(100% - 66px)' : 'calc(100% - 78px)', 'important');
-
-    if (!mainContent) return;
-
-    mainContent.style.transition = 'margin-left .25s ease, width .25s ease';
-
-    if (window.innerWidth <= 650) {
-      mainContent.style.setProperty('margin-left', '0', 'important');
-      mainContent.style.setProperty('width', '100%', 'important');
-      return;
-    }
-
-    // Sidebar abierto: 361px. Barra colapsada: 78px.
-    // Diferencia = 283px, que es lo que debe desplazarse el contenido inferior.
-    mainContent.style.setProperty('margin-left', expanded ? '283px' : '0', 'important');
-    mainContent.style.setProperty('width', expanded ? 'calc(100% - 283px)' : '100%', 'important');
+    document.body.classList.toggle('sidebar-expanded', expanded);
   };
 
   if (sidebar && menuToggle) {
     const setSidebarState = (expanded) => {
       sidebar.classList.toggle('collapsed', !expanded);
       menuToggle.setAttribute('aria-expanded', String(expanded));
+      document.body.classList.toggle('sidebar-expanded', expanded);
 
       if (!expanded) {
         document.getElementById('courseSubmenu')?.classList.remove('open');
         document.querySelector('[data-courses-toggle]')?.classList.remove('submenu-open');
       }
-
-      syncSidebarLayout();
     };
 
-    syncSidebarLayout();
-    window.addEventListener('resize', syncSidebarLayout);
+    syncSidebarClass();
 
     menuToggle.addEventListener('click', () => {
       setSidebarState(sidebar.classList.contains('collapsed'));
@@ -119,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (sidebar?.classList.contains('collapsed')) {
         sidebar.classList.remove('collapsed');
         menuToggle?.setAttribute('aria-expanded', 'true');
-        syncSidebarLayout();
+        document.body.classList.add('sidebar-expanded');
       }
 
       courseSubmenu.classList.toggle('open');
