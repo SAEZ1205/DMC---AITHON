@@ -10,29 +10,33 @@ document.addEventListener('DOMContentLoaded', () => {
   const sidebar = document.getElementById('sidebar');
   const menuToggle = document.getElementById('menuToggle');
   const pageColumn = document.querySelector('.page-column');
+  const mainContent = document.querySelector('.main-content');
 
   const syncSidebarLayout = () => {
     if (!sidebar || !pageColumn) return;
 
     const expanded = !sidebar.classList.contains('collapsed');
-    pageColumn.style.transition = 'margin-left .25s ease, width .25s ease';
+
+    // La cabecera superior se mantiene siempre en el mismo lugar.
+    // Solo el contenido debajo de la cabecera se encoge y se desplaza,
+    // igual que en la plataforma original de DMC.
+    pageColumn.style.setProperty('margin-left', window.innerWidth <= 650 ? '66px' : '78px', 'important');
+    pageColumn.style.setProperty('width', window.innerWidth <= 650 ? 'calc(100% - 66px)' : 'calc(100% - 78px)', 'important');
+
+    if (!mainContent) return;
+
+    mainContent.style.transition = 'margin-left .25s ease, width .25s ease';
 
     if (window.innerWidth <= 650) {
-      pageColumn.style.setProperty('margin-left', '66px', 'important');
-      pageColumn.style.setProperty('width', 'calc(100% - 66px)', 'important');
+      mainContent.style.setProperty('margin-left', '0', 'important');
+      mainContent.style.setProperty('width', '100%', 'important');
       return;
     }
 
-    pageColumn.style.setProperty(
-      'margin-left',
-      expanded ? '361px' : '78px',
-      'important'
-    );
-    pageColumn.style.setProperty(
-      'width',
-      expanded ? 'calc(100% - 361px)' : 'calc(100% - 78px)',
-      'important'
-    );
+    // Sidebar abierto: 361px. Barra colapsada: 78px.
+    // Diferencia = 283px, que es lo que debe desplazarse el contenido inferior.
+    mainContent.style.setProperty('margin-left', expanded ? '283px' : '0', 'important');
+    mainContent.style.setProperty('width', expanded ? 'calc(100% - 283px)' : '100%', 'important');
   };
 
   if (sidebar && menuToggle) {
