@@ -4,98 +4,49 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DMC Institute | Área personal</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="icon" type="image/png" href="assets/dmc-logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css" /><link rel="stylesheet" href="enhancements.css" />
 </head>
 <body class="dashboard-page">
   <div class="dashboard-layout">
     <aside id="sidebar" class="sidebar collapsed">
-      <button id="menuToggle" class="menu-toggle" aria-label="Abrir menú"><i class="fa-solid fa-bars"></i></button>
+      <button id="menuToggle" class="menu-toggle" aria-label="Abrir menú" aria-expanded="false"><i class="fa-solid fa-bars"></i></button>
       <nav class="sidebar-nav">
-        <a class="side-item" href="#"><i class="fa-solid fa-gauge-high"></i><span>Área personal</span></a>
-        <a class="side-item" href="#"><i class="fa-solid fa-house"></i><span>Página principal del sitio</span></a>
-        <a class="side-item" href="#"><i class="fa-regular fa-calendar-days"></i><span>Calendario</span></a>
-        <a class="side-item active" href="#"><i class="fa-solid fa-layer-group"></i><span>Certificados</span></a>
-        <a class="side-item" href="#"><i class="fa-regular fa-copy"></i><span>Archivos privados</span></a>
-        <a class="side-item" href="#"><i class="fa-solid fa-graduation-cap"></i><span>Mis cursos</span><i class="fa-solid fa-angle-left arrow"></i></a>
+        <a class="side-item active" href="dashboard.html" data-label="Área personal"><i class="fa-solid fa-gauge-high"></i><span>Área personal</span></a>
+        <a class="side-item" href="site-home.html" data-label="Página principal del sitio"><i class="fa-solid fa-house"></i><span>Página principal del sitio</span></a>
+        <a class="side-item" href="calendar.html" data-label="Calendario"><i class="fa-regular fa-calendar-days"></i><span>Calendario</span></a>
+        <a class="side-item" href="certificates.html" data-label="Certificados"><i class="fa-solid fa-layer-group"></i><span>Certificados</span></a>
+        <a class="side-item" href="private-files.html" data-label="Archivos privados"><i class="fa-regular fa-copy"></i><span>Archivos privados</span></a>
+        <a class="side-item" href="#" data-courses-toggle data-label="Mis cursos"><i class="fa-solid fa-graduation-cap"></i><span>Mis cursos</span><i class="fa-solid fa-angle-left arrow"></i></a>
+        <div id="courseSubmenu" class="course-submenu"><a href="courses.html">Todos mis cursos</a><a href="dmcinos.html">DMCinos</a></div>
       </nav>
-      <div class="accessibility"><i class="fa-solid fa-universal-access"></i></div>
+      <div class="accessibility-wrap"><button id="accessibilityButton" class="accessibility-button" aria-label="Accesibilidad"><i class="fa-solid fa-universal-access"></i></button><div id="accessibilityPanel" class="accessibility-panel"><button>A- Reducir texto</button><button>A Tamaño normal</button><button>A+ Aumentar texto</button></div></div>
     </aside>
 
     <div class="page-column">
       <header class="topbar">
         <div class="top-left">
-          <div class="dmc-logo top-logo" aria-label="DMC Institute">
-            <span class="mark">DMC</span><span class="divider"></span><span class="word">INSTITUTE</span>
-          </div>
+          <a class="brand brand-top" href="dashboard.html" aria-label="DMC Institute"><img src="assets/dmc-logo.png" alt="DMC" /><span class="brand-divider"></span><span class="brand-word">INSTITUTE</span></a>
           <nav class="top-nav">
-            <a href="#">NOSOTROS <i class="fa-solid fa-caret-down"></i></a>
-            <a href="#">PRODUCTOS <i class="fa-solid fa-caret-down"></i></a>
-            <a href="#">TÉRMINOS Y CONDICIONES</a>
-            <a href="#">POLÍTICAS EN CLASES</a>
-            <a href="#">EXPERTOS <i class="fa-solid fa-caret-down"></i></a>
+            <div class="nav-drop"><button class="nav-drop-toggle" type="button">NOSOTROS <i class="fa-solid fa-caret-down"></i></button><div class="nav-dropdown nav-small"><a href="site-home.html">INICIO</a></div></div>
+            <div class="nav-drop"><button class="nav-drop-toggle" type="button">PRODUCTOS <i class="fa-solid fa-caret-down"></i></button><div class="nav-dropdown nav-products"><a href="#">Diploma Internacional</a><a href="#">Bootcamps</a><a href="#">Certificación</a><a href="#">Cursos</a><a href="#">Diplomas</a><a href="#">Especializaciones</a><a href="#">Inhouse</a><a href="#">Mentoría</a><a href="#">Master</a></div></div>
+            <a href="#">TÉRMINOS Y CONDICIONES</a><a href="#">POLÍTICAS EN CLASES</a>
+            <div class="nav-drop"><button class="nav-drop-toggle" type="button">EXPERTOS <i class="fa-solid fa-caret-down"></i></button><div class="nav-dropdown nav-small"><a href="#">Inducción</a></div></div>
           </nav>
         </div>
         <div class="top-actions">
-          <button class="icon-btn" aria-label="Notificaciones"><i class="fa-regular fa-bell"></i></button>
-          <button class="icon-btn" aria-label="Mensajes"><i class="fa-regular fa-comment"></i></button>
-          <div class="profile-wrap">
-            <button id="profileButton" class="profile-button" aria-label="Perfil">
-              <span class="avatar"><i class="fa-solid fa-user"></i></span><i class="fa-solid fa-caret-down"></i>
-            </button>
-            <div id="profileMenu" class="profile-menu">
-              <div class="profile-name"><i class="fa-regular fa-user"></i><span>NAOMI SA...</span></div>
-              <a href="#"><i class="fa-solid fa-gauge-high"></i><span>Área personal</span></a>
-              <a href="#"><i class="fa-regular fa-user"></i><span>Perfil</span></a>
-              <a href="index.html"><i class="fa-solid fa-right-from-bracket"></i><span>Cerrar sesión</span></a>
-            </div>
-          </div>
+          <button class="icon-btn" aria-label="Notificaciones"><i class="fa-regular fa-bell"></i></button><button class="icon-btn" aria-label="Mensajes"><i class="fa-regular fa-comment"></i></button>
+          <div class="profile-wrap"><button id="profileButton" class="profile-button" aria-label="Perfil"><span class="avatar"><i class="fa-solid fa-user"></i></span><i class="fa-solid fa-caret-down"></i></button><div id="profileMenu" class="profile-menu"><div class="profile-name"><i class="fa-regular fa-user"></i><span>NAOMI SA...</span></div><a class="is-current" href="dashboard.html"><i class="fa-solid fa-gauge-high"></i><span>Área personal</span></a><a href="profile.html"><i class="fa-regular fa-user"></i><span>Perfil</span></a><a href="index.html"><i class="fa-solid fa-right-from-bracket"></i><span>Cerrar sesión</span></a></div></div>
         </div>
       </header>
 
       <main class="main-content">
-        <section class="profile-hero card-panel">
-          <div class="hero-avatar"><i class="fa-solid fa-user"></i></div>
-          <div class="hero-title-row">
-            <h1>DMC: ÁREA PERSONAL</h1>
-            <span class="message-link"><i class="fa-regular fa-comment"></i> Mensaje</span>
-          </div>
-          <button class="customize-btn">PERSONALIZAR ESTA PÁGINA</button>
-        </section>
-
-        <section class="recent-panel card-panel">
-          <h2>Cursos accedidos recientemente</h2>
-          <article class="course-card">
-            <div class="course-banner">
-              <div class="automation-decor">
-                <span></span><span></span><span></span><span></span>
-              </div>
-              <small>&gt; Especialización en</small>
-              <strong>N8N E IA:<br>AUTOMATIZACIÓN</strong>
-            </div>
-            <div class="course-text">
-              <p>Especializaciones</p>
-              <p>Especialización en n8n e IA: Automatización Inteligente Low-Code - Edición - 7</p>
-            </div>
-          </article>
-        </section>
-
-        <footer class="site-footer">
-          <div>
-            <p>Mantente en contacto</p>
-            <a href="https://dmc.pe" target="_blank" rel="noreferrer"><i class="fa-solid fa-globe"></i> https://dmc.pe</a>
-          </div>
-          <div class="socials">
-            <a href="#" aria-label="Facebook"><i class="fa-brands fa-facebook-f"></i></a>
-            <a href="#" aria-label="LinkedIn"><i class="fa-brands fa-linkedin-in"></i></a>
-            <a href="#" aria-label="YouTube"><i class="fa-brands fa-youtube"></i></a>
-            <a href="#" aria-label="Instagram"><i class="fa-brands fa-instagram"></i></a>
-            <a href="#" aria-label="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>
-          </div>
-        </footer>
+        <section class="profile-hero card-panel"><div class="hero-avatar"><i class="fa-solid fa-user"></i></div><div class="hero-title-row"><h1>DMC: ÁREA PERSONAL</h1><span class="message-link"><i class="fa-regular fa-comment"></i> Mensaje</span></div><button class="customize-btn">PERSONALIZAR ESTA PÁGINA</button></section>
+        <section class="recent-panel card-panel"><h2>Cursos accedidos recientemente</h2><article class="course-card" data-href="courses.html"><div class="course-banner"><div class="automation-decor"><span></span><span></span><span></span><span></span></div><small>&gt; Especialización en</small><strong>N8N E IA:<br>AUTOMATIZACIÓN</strong></div><div class="course-text"><p>Especializaciones</p><p>Especialización en n8n e IA: Automatización Inteligente Low-Code - Edición - 7</p></div></article></section>
+        <footer class="site-footer"><div class="contact-block"><p>Mantente en contacto</p><a href="https://dmc.pe" target="_blank"><i class="fa-solid fa-globe"></i> https://dmc.pe</a><a href="tel:+51908866137"><i class="fa-solid fa-phone"></i> +51 908 866 137</a><a href="mailto:customer.experience@dmc.pe"><i class="fa-regular fa-envelope"></i> customer.experience@dmc.pe</a></div><div class="footer-right"><div class="socials"><a href="#"><i class="fa-brands fa-facebook-f"></i></a><a href="#"><i class="fa-brands fa-linkedin-in"></i></a><a href="#"><i class="fa-brands fa-youtube"></i></a><a href="#"><i class="fa-brands fa-instagram"></i></a><a href="#"><i class="fa-brands fa-whatsapp"></i></a></div><button class="app-download"><i class="fa-solid fa-mobile-screen-button"></i> Descargar la app para dispositivos móviles</button></div></footer><div class="rights-bar">TODOS LO DERECHOS RESERVADOS © Learning by EV - DMC</div>
       </main>
     </div>
   </div>
