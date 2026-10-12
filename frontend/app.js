@@ -9,16 +9,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const sidebar = document.getElementById('sidebar');
   const menuToggle = document.getElementById('menuToggle');
+  const pageColumn = document.querySelector('.page-column');
+
+  const syncSidebarLayout = () => {
+    if (!sidebar || !pageColumn) return;
+
+    const expanded = !sidebar.classList.contains('collapsed');
+    pageColumn.style.transition = 'margin-left .25s ease, width .25s ease';
+
+    if (window.innerWidth <= 650) {
+      pageColumn.style.setProperty('margin-left', '66px', 'important');
+      pageColumn.style.setProperty('width', 'calc(100% - 66px)', 'important');
+      return;
+    }
+
+    pageColumn.style.setProperty(
+      'margin-left',
+      expanded ? '361px' : '78px',
+      'important'
+    );
+    pageColumn.style.setProperty(
+      'width',
+      expanded ? 'calc(100% - 361px)' : 'calc(100% - 78px)',
+      'important'
+    );
+  };
+
   if (sidebar && menuToggle) {
     const setSidebarState = (expanded) => {
       sidebar.classList.toggle('collapsed', !expanded);
       menuToggle.setAttribute('aria-expanded', String(expanded));
+
       if (!expanded) {
         document.getElementById('courseSubmenu')?.classList.remove('open');
         document.querySelector('[data-courses-toggle]')?.classList.remove('submenu-open');
       }
+
+      syncSidebarLayout();
     };
-    menuToggle.addEventListener('click', () => setSidebarState(sidebar.classList.contains('collapsed')));
+
+    syncSidebarLayout();
+    window.addEventListener('resize', syncSidebarLayout);
+
+    menuToggle.addEventListener('click', () => {
+      setSidebarState(sidebar.classList.contains('collapsed'));
+    });
   }
 
   const profileButton = document.getElementById('profileButton');
@@ -76,10 +111,13 @@ document.addEventListener('DOMContentLoaded', () => {
   if (coursesToggle && courseSubmenu) {
     coursesToggle.addEventListener('click', (event) => {
       event.preventDefault();
+
       if (sidebar?.classList.contains('collapsed')) {
         sidebar.classList.remove('collapsed');
         menuToggle?.setAttribute('aria-expanded', 'true');
+        syncSidebarLayout();
       }
+
       courseSubmenu.classList.toggle('open');
       coursesToggle.classList.toggle('submenu-open');
     });
