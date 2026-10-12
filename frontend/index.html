@@ -4,11 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DMC Institute | Iniciar sesión</title>
+  <link rel="icon" type="image/png" href="assets/dmc-logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="enhancements.css" />
 </head>
 <body class="login-page">
   <main class="login-shell">
@@ -18,16 +20,15 @@
       <span></span><span></span><span></span><span></span><span></span><span></span>
     </div>
     <div class="desk-object mouse" aria-hidden="true"></div>
-    <div class="desk-object calculator" aria-hidden="true">
-      <div class="calculator-screen">0</div>
-      <div class="calculator-keys"></div>
-    </div>
+    <div class="desk-object calculator" aria-hidden="true"><div class="calculator-screen">0</div><div class="calculator-keys"></div></div>
     <div class="desk-object phone" aria-hidden="true"><div></div></div>
     <div class="desk-object usb" aria-hidden="true"></div>
     <div class="desk-object coffee" aria-hidden="true"><div></div></div>
 
-    <div class="login-logo dmc-logo" aria-label="DMC Institute">
-      <span class="mark">DMC</span><span class="divider"></span><span class="word">INSTITUTE</span>
+    <div class="login-logo brand" aria-label="DMC Institute">
+      <img src="assets/dmc-logo.png" alt="DMC" />
+      <span class="brand-divider"></span>
+      <span class="brand-word">INSTITUTE</span>
     </div>
 
     <section class="login-card">
@@ -38,18 +39,11 @@
         <p><i class="fa-solid fa-circle-user"></i> Algunos cursos permiten el acceso de invitados</p>
         <a class="guest-btn" href="dashboard.html">INICIAR SESIÓN COMO INVITADO</a>
       </div>
-
       <div class="login-form-panel">
         <h2>¿YA TIENES UNA CUENTA?</h2>
         <form id="loginForm">
-          <label class="input-row">
-            <span><i class="fa-regular fa-circle-user"></i></span>
-            <input id="username" type="text" placeholder="Nombre de usuario" autocomplete="username" />
-          </label>
-          <label class="input-row">
-            <span><i class="fa-solid fa-lock"></i></span>
-            <input id="password" type="password" placeholder="Contraseña" autocomplete="current-password" />
-          </label>
+          <label class="input-row"><span><i class="fa-regular fa-circle-user"></i></span><input id="username" type="text" placeholder="Nombre de usuario" autocomplete="username" /></label>
+          <label class="input-row"><span><i class="fa-solid fa-lock"></i></span><input id="password" type="password" placeholder="Contraseña" autocomplete="current-password" /></label>
           <label class="remember-row"><input type="checkbox" /> <span>Recordar nombre de usuario</span></label>
           <button class="access-btn" type="submit">Acceder</button>
         </form>
@@ -57,7 +51,6 @@
       </div>
     </section>
   </main>
-
   <script src="app.js"></script>
 </body>
 </html>
