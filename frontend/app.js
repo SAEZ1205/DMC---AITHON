@@ -10,15 +10,45 @@ document.addEventListener('DOMContentLoaded', () => {
   const sidebar = document.getElementById('sidebar');
   const menuToggle = document.getElementById('menuToggle');
   if (sidebar && menuToggle) {
-    menuToggle.addEventListener('click', () => {
-      sidebar.classList.toggle('collapsed');
-      menuToggle.setAttribute('aria-expanded', String(!sidebar.classList.contains('collapsed')));
-    });
+    const setSidebarState = (expanded) => {
+      sidebar.classList.toggle('collapsed', !expanded);
+      menuToggle.setAttribute('aria-expanded', String(expanded));
+      if (!expanded) {
+        document.getElementById('courseSubmenu')?.classList.remove('open');
+        document.querySelector('[data-courses-toggle]')?.classList.remove('submenu-open');
+      }
+    };
+    menuToggle.addEventListener('click', () => setSidebarState(sidebar.classList.contains('collapsed')));
   }
 
   const profileButton = document.getElementById('profileButton');
   const profileMenu = document.getElementById('profileMenu');
-  const closeTopMenus = () => document.querySelectorAll('.nav-drop.open').forEach((drop) => drop.classList.remove('open'));
+  const topDrops = [...document.querySelectorAll('.nav-drop')];
+  const closeTopMenus = () => topDrops.forEach((drop) => drop.classList.remove('open'));
+  const closeProfile = () => profileMenu?.classList.remove('open');
+
+  topDrops.forEach((drop) => {
+    const button = drop.querySelector('.nav-drop-toggle');
+    if (!button) return;
+
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const shouldOpen = !drop.classList.contains('open');
+      closeTopMenus();
+      closeProfile();
+      if (shouldOpen) drop.classList.add('open');
+    });
+
+    if (window.matchMedia('(hover:hover) and (pointer:fine)').matches) {
+      drop.addEventListener('mouseenter', () => {
+        closeTopMenus();
+        closeProfile();
+        drop.classList.add('open');
+      });
+      drop.addEventListener('mouseleave', () => drop.classList.remove('open'));
+    }
+  });
 
   if (profileButton && profileMenu) {
     profileButton.addEventListener('click', (event) => {
@@ -28,22 +58,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  document.querySelectorAll('.nav-drop-toggle').forEach((button) => {
-    button.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const current = button.closest('.nav-drop');
-      document.querySelectorAll('.nav-drop.open').forEach((drop) => {
-        if (drop !== current) drop.classList.remove('open');
-      });
-      current?.classList.toggle('open');
-      profileMenu?.classList.remove('open');
-    });
-  });
-
   document.addEventListener('click', (event) => {
     if (!event.target.closest('.nav-drop')) closeTopMenus();
-    if (profileMenu && !event.target.closest('.profile-wrap')) profileMenu.classList.remove('open');
+    if (!event.target.closest('.profile-wrap')) closeProfile();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeTopMenus();
+      closeProfile();
+      document.getElementById('accessibilityPanel')?.classList.remove('open');
+    }
   });
 
   const coursesToggle = document.querySelector('[data-courses-toggle]');
@@ -51,6 +76,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (coursesToggle && courseSubmenu) {
     coursesToggle.addEventListener('click', (event) => {
       event.preventDefault();
+      if (sidebar?.classList.contains('collapsed')) {
+        sidebar.classList.remove('collapsed');
+        menuToggle?.setAttribute('aria-expanded', 'true');
+      }
       courseSubmenu.classList.toggle('open');
       coursesToggle.classList.toggle('submenu-open');
     });
@@ -70,9 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.querySelectorAll('[data-go]').forEach((element) => {
-    element.addEventListener('click', () => {
-      window.location.href = element.dataset.go;
-    });
+    element.addEventListener('click', () => window.location.href = element.dataset.go);
   });
 
   const accessibility = document.getElementById('accessibilityButton');
@@ -82,8 +109,10 @@ document.addEventListener('DOMContentLoaded', () => {
       event.stopPropagation();
       accessibilityPanel.classList.toggle('open');
     });
-    document.addEventListener('click', (event) => {
-      if (!event.target.closest('.accessibility-wrap')) accessibilityPanel.classList.remove('open');
-    });
+
+    const buttons = accessibilityPanel.querySelectorAll('button');
+    if (buttons[0]) buttons[0].addEventListener('click', () => document.documentElement.style.fontSize = '90%');
+    if (buttons[1]) buttons[1].addEventListener('click', () => document.documentElement.style.fontSize = '100%');
+    if (buttons[2]) buttons[2].addEventListener('click', () => document.documentElement.style.fontSize = '110%');
   }
 });
