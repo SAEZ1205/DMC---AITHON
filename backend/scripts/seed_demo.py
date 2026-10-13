@@ -6,7 +6,8 @@ Uso: python scripts/seed_demo.py [--regen] [--students 30] [--seed 42]
 - Genera la cohorte si no existe (o si se pasa --regen) e ingesta sus exportaciones tipo Zoom.
 - El contenido de cada clase (transcripción, capítulos, resumen, quiz) sale de la sesión de muestra
   data/sample/session_demo/, salvo que exista data/zoom/<session_id>/ con exportaciones reales.
-- Al final recalcula cumplimiento, estados y alertas con el reloj actual (SIM_NOW).
+- Recalcula cumplimiento, estados y alertas día a día durante las 4 semanas previas al reloj actual
+  (SIM_NOW) y luego en SIM_NOW, como lo habría hecho el recálculo programado.
 """
 from __future__ import annotations
 
@@ -15,7 +16,7 @@ import csv
 import json
 import shutil
 import sys
-from datetime import date, datetime
+from datetime import datetime, time, timedelta
 from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parents[1]
@@ -40,6 +41,7 @@ STAFF = [
     ("Rosa Huamán", "rosa.huaman@dmc.pe", "tutor"),
     ("Jorge Salas", "jorge.salas@dmc.pe", "coordinador"),
 ]
+HISTORY_DAYS = 28  # recálculo diario previo a SIM_NOW para que alertas y escalamientos tengan historia
 
 
 def reset_database() -> None:
@@ -162,6 +164,10 @@ def seed() -> None:
         for s in sessions.values():
             process_session(db, s)
         now = config.now()
+        for days in range(HISTORY_DAYS, 0, -1):
+            day = datetime.combine((now - timedelta(days=days)).date(), time(23, 59))
+            if day >= first:
+                recompute_course(db, course.id, day)
         result = recompute_course(db, course.id, now)
 
     counts: dict[str, int] = {}
