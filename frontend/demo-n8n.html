@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Introducción a n8n — Clase 1 · RescuePath AI</title>
+  <link rel="icon" href="https://aulavirtualdmc.com/learning/pluginfile.php/1/theme_moove/favicon/1788553602/dmc-borde-cuadrado%20%281%29.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="dmc.css">
+  <link rel="stylesheet" href="demo-n8n.css">
+</head>
+<body class="dashboard-page demo-n8n">
+  <header class="topbar">
+    <a class="brand" href="dashboard.html"><img src="https://aulavirtualdmc.com/learning/pluginfile.php/1/theme_moove/logo/1788553602/logo%20dmc%20institute%20av.png" alt="DMC Institute"></a>
+    <div class="demo-topbar-note"><i class="fa-solid fa-flask"></i> Demostración local · material privado</div>
+  </header>
+
+  <div class="page-shell">
+    <main class="page">
+      <section class="course-hero">
+        <h1 id="lessonTitle">Introducción a n8n — Clase 1</h1>
+        <div class="breadcrumbs"><span>Área personal</span><span>Demostración RescuePath AI</span><span>Clase real</span></div>
+        <p id="statusLine" class="demo-status" role="status">Conectando con el asistente…</p>
+      </section>
+
+      <div id="errorPanel" class="demo-error" hidden></div>
+
+      <div class="demo-grid">
+        <div class="demo-col">
+          <!-- ZONA DE VIDEO -->
+          <section class="content-card demo-card" aria-labelledby="videoHeading">
+            <h2 id="videoHeading"><i class="fa-solid fa-circle-play"></i> Video de la clase</h2>
+            <video id="player" controls preload="metadata" playsinline></video>
+            <p class="demo-meta">Duración: <strong id="durationLabel">—</strong> · <span id="videoInfo">—</span></p>
+            <p id="videoError" class="demo-warn" hidden></p>
+          </section>
+
+          <!-- ZONA DE RESUMEN -->
+          <section class="content-card demo-card" aria-labelledby="summaryHeading">
+            <h2 id="summaryHeading"><i class="fa-solid fa-list-check"></i> Resumen de la clase</h2>
+            <p id="summaryBadges" class="demo-badges"></p>
+            <p id="summaryOverview" class="demo-overview">Cargando resumen…</p>
+            <p class="demo-hint">Pulsa un capítulo para saltar a ese momento del video.</p>
+            <ol id="chapterList" class="demo-chapters"></ol>
+            <p id="summaryNote" class="demo-meta"></p>
+          </section>
+        </div>
+
+        <!-- ZONA DE CHAT -->
+        <aside class="demo-col demo-chat-col">
+          <section class="content-card demo-card demo-chat" aria-labelledby="chatHeading">
+            <h2 id="chatHeading"><i class="fa-solid fa-comments"></i> Pregúntale al tutor</h2>
+            <p class="demo-meta">Responde solo con lo que se dice en esta clase y cita el minuto. <span id="modeBadge" class="demo-pill">—</span></p>
+            <div id="messages" class="demo-messages" aria-live="polite"></div>
+            <div class="demo-suggestions" id="suggestions" aria-label="Preguntas de ejemplo"></div>
+            <form id="chatForm" class="demo-form" autocomplete="off">
+              <label class="sr-only" for="question">Tu pregunta sobre la clase</label>
+              <textarea id="question" rows="2" maxlength="1000" placeholder="Escribe tu pregunta sobre la clase…" required></textarea>
+              <button id="sendBtn" type="submit"><i class="fa-solid fa-paper-plane"></i> Enviar</button>
+            </form>
+            <p id="telemetryNotice" class="demo-meta"></p>
+          </section>
+        </aside>
+      </div>
+    </main>
+    <footer class="page-footer">Demostración RescuePath AI · Clase real de DMC Institute para uso local — no publicar</footer>
+  </div>
+
+  <script src="demo-n8n.js"></script>
+</body>
+</html>
