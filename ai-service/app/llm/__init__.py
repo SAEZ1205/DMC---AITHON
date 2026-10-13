@@ -9,10 +9,11 @@ from app.llm.base import (
 from app.llm.demo_provider import DemoProvider
 from app.llm.errors import LLMError
 from app.llm.kimi_provider import KimiProvider
+from app.llm.nvidia_provider import NvidiaKimiProvider
 
 logger = logging.getLogger(__name__)
 
-LIVE_PROVIDERS = ("kimi", "moonshot")
+LIVE_PROVIDERS = ("kimi", "moonshot", "nvidia")
 
 
 @dataclass(frozen=True)
@@ -29,8 +30,8 @@ class ProviderSelection:
 
 def select_provider(config: Optional[LLMConfig] = None, client=None) -> ProviderSelection:
     """
-    DEMO salvo que se cumplan TODAS estas condiciones: proveedor kimi/moonshot + LLM_API_KEY + LLM_LIVE_AUTHORIZED=true.
-    Así una clave presente por accidente no genera costos sin una autorización explícita.
+    DEMO salvo que se cumplan TODAS estas condiciones: proveedor kimi/moonshot/nvidia + su clave (LLM_API_KEY o
+    NVIDIA_API_KEY) + LLM_LIVE_AUTHORIZED=true. Así una clave presente por accidente no genera llamadas sin autorización.
     """
     config = config or settings.llm_config()
     requested = (config.provider or "demo").lower()
@@ -40,12 +41,19 @@ def select_provider(config: Optional[LLMConfig] = None, client=None) -> Provider
             logger.warning("Proveedor LLM %r desconocido; se usa el modo DEMO.", requested)
             return ProviderSelection(DemoProvider(), requested, f"proveedor '{requested}' no soportado")
         return ProviderSelection(DemoProvider(), requested, "LLM_PROVIDER=demo")
+    key_name = "NVIDIA_API_KEY" if requested == "nvidia" else "LLM_API_KEY"
     if not config.api_key:
-        logger.warning("LLM_PROVIDER=%s sin LLM_API_KEY: se usa el modo DEMO.", requested)
-        return ProviderSelection(DemoProvider(), requested, "falta LLM_API_KEY")
+        logger.warning("LLM_PROVIDER=%s sin %s: se usa el modo DEMO.", requested, key_name)
+        return ProviderSelection(DemoProvider(), requested, f"falta {key_name}")
     if not config.live_authorized:
-        logger.warning("Hay LLM_API_KEY pero LLM_LIVE_AUTHORIZED no es true: se usa el modo DEMO (sin llamadas facturables).")
-        return ProviderSelection(DemoProvider(), requested, "LLM_LIVE_AUTHORIZED no es true (presupuesto sin autorizar)")
+        logger.warning("Hay clave pero LLM_LIVE_AUTHORIZED no es true: se usa el modo DEMO (sin llamadas externas).")
+        return ProviderSelection(DemoProvider(), requested, "LLM_LIVE_AUTHORIZED no es true (uso externo sin autorizar)")
+    if requested == "nvidia":
+        try:
+            return ProviderSelection(NvidiaKimiProvider(config, client=client), requested, "LIVE autorizado (NVIDIA Build)")
+        except ValueError as exc:      # URL base insegura: se informa el motivo y se mantiene DEMO
+            logger.error("Configuración NVIDIA inválida: %s", exc)
+            return ProviderSelection(DemoProvider(), requested, f"configuración NVIDIA inválida: {exc}")
     return ProviderSelection(KimiProvider(config, client=client), requested, "LIVE autorizado")
 
 
@@ -61,6 +69,6 @@ def get_provider(name: str = None, config: Optional[LLMConfig] = None) -> LLMPro
 
 
 __all__ = [
-    "ChatTurn", "DemoProvider", "FollowUpMode", "KimiProvider", "LLMError", "LLMProvider",
+    "ChatTurn", "DemoProvider", "FollowUpMode", "KimiProvider", "LLMError", "LLMProvider", "NvidiaKimiProvider",
     "ProviderSelection", "ResponseKind", "TutorContext", "TutorReply", "get_provider", "select_provider",
 ]

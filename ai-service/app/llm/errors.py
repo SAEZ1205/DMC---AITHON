@@ -15,7 +15,9 @@ class LLMError(Exception):
     http_status = 502
     public_message = "El proveedor de IA no pudo generar la respuesta."
 
-    def __init__(self, detail: str = "", upstream_status: Optional[int] = None):
+    def __init__(self, detail: str = "", upstream_status: Optional[int] = None, public_message: Optional[str] = None):
+        if public_message is not None:                 # mensaje específico del proveedor (p. ej. NVIDIA), solo para esta instancia
+            self.public_message = public_message
         super().__init__(detail or self.public_message)
         self.detail = detail          # solo para registros internos; nunca contiene la clave
         self.upstream_status = upstream_status
@@ -55,6 +57,14 @@ class LLMRateLimited(LLMUnavailable):
 class LLMBudgetExceeded(LLMUnavailable):
     code = "llm_budget_exceeded"
     public_message = "Se alcanzó el tope de llamadas LIVE configurado (LLM_MAX_LIVE_CALLS)."
+
+
+class LLMContentNotAuthorized(LLMError):
+    """El contenido a enviar (p. ej. la clase real de DMC) no está autorizado a salir hacia este proveedor."""
+    code = "llm_content_not_authorized"
+    http_status = 403
+    fallback_allowed = True
+    public_message = "El contenido de la clase no está autorizado para enviarse a este proveedor externo."
 
 
 class LLMMalformedResponse(LLMError):

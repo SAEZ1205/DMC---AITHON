@@ -4,6 +4,26 @@ Carpeta reservada para el módulo de inteligencia artificial y sus APIs.
 
 La idea es mantener esta lógica separada del frontend para que ambos equipos puedan trabajar sin pisarse archivos. Cuando el servicio esté listo, el frontend se conectará mediante endpoints definidos por el equipo de IA/backend.
 
+## Etapa 6: Kimi K3 mediante NVIDIA Build
+
+Proveedor `NvidiaKimiProvider` (`app/llm/nvidia_provider.py`), **independiente** de `KimiProvider` (Moonshot) y de `DemoProvider`, que no se modificaron.
+Endpoint `https://integrate.api.nvidia.com/v1/chat/completions`, modelo `moonshotai/kimi-k3`, `Authorization: Bearer <NVIDIA_API_KEY>`.
+
+- **Activación (dos condiciones explícitas):** `LLM_PROVIDER=nvidia` **y** `LLM_LIVE_AUTHORIZED=true`, además de `NVIDIA_API_KEY` en `ai-service/.env`.
+  Con solo la clave, el sistema sigue en **DEMO** (así lo comprueba `/health` → `llm.selection_reason`).
+- **Parámetros (según la documentación oficial):** `reasoning_effort` (`low|high|max`, por defecto `low`); sin `thinking` ni `response_format` por defecto
+  (no documentados para NVIDIA). El razonamiento (`reasoning_content`) se **ignora**: no se muestra, guarda ni registra.
+- **Errores (sin reintentos):** 401/403/404/429/5xx → mensaje preciso y **respuesta DEMO con aviso visible** (`fallback_used`, `provider_notice`).
+  Tras un 401/403/404/402 (300 s) o 429 (60 s o `Retry-After`) el proveedor se **pausa** y no vuelve a llamar hasta que pase el enfriamiento;
+  `/health` → `llm.provider_status` indica el motivo.
+- **Privacidad:** NVIDIA puede registrar entradas y salidas. El contenido de la **clase real** no se envía mientras `NVIDIA_ALLOW_CLASS_CONTENT=false`.
+  Nunca viajan el video, la transcripción completa ni identificadores de estudiantes; los datos personales reconocibles se enmascaran.
+  `scripts/review_privacy.py` (local, sin red) revisa qué podría salir.
+- **Primera prueba real (una sola solicitud, texto ficticio):**
+  `.\.venv\Scripts\python.exe scripts\verify_nvidia_live.py --i-authorize-one-nvidia-request`
+- El resumen generativo de la clase **no** se activa solo: sigue siendo una acción administrativa explícita; el resumen heurístico persistido es el que se muestra.
+- Las pruebas usan **solo** transporte simulado: ninguna llama a NVIDIA. Que el modelo responda de verdad solo lo demuestra la prueba real autorizada.
+
 ## Etapa 5: clase real de n8n (video + resumen persistido + tutor con citas)
 
 Demostración con **una clase real de DMC sobre introducción a n8n** (curso `n8n-intro`, clase `clase-01-introduccion-n8n`).

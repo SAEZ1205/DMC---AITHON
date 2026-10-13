@@ -100,8 +100,11 @@ class LLMGuardian:
             return verdict
         lesson = self.retriever.get_lesson(course_id, lesson_id) if lesson_id else None
         title = lesson.title if lesson else course_id
+        # Si la clase es privada y el proveedor no tiene autorización para su contenido, solo viaja la pregunta (ya enmascarada).
+        allowed = getattr(self.provider, "content_allowed", lambda c, l: True)(course_id, lesson_id)
+        hints = self._hints(course_id, lesson_id) if allowed else []
         try:
-            label, reason = self.provider.classify_relevance(mask_pii(question), title, self._hints(course_id, lesson_id))
+            label, reason = self.provider.classify_relevance(mask_pii(question), title, hints)
         except LLMError as exc:
             logger.warning("Guardián LLM no disponible (%s); se conserva el veredicto heurístico.", exc.code)
             return GuardianVerdict(verdict.label, "heuristic",

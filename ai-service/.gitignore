@@ -25,3 +25,7 @@ data/*.db-shm
 
 # Informes locales de la clase real (contienen fragmentos de la grabación)
 data/real/
+
+# Variantes privadas del entorno (la plantilla pública es .env.example)
+.env.*
+!.env.example

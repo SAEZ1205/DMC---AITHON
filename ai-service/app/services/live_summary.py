@@ -94,7 +94,7 @@ class LiveSummaryGenerator:
         response = LessonSummaryResponse(
             course_id=lesson.course_id, lesson_id=lesson.lesson_id, lesson_title=lesson.title,
             duration_seconds=lesson.duration_seconds, duration_label=format_timestamp(lesson.duration_seconds),
-            mode="LIVE", engine="kimi", provider="kimi", generated_by=f"kimi:{self.provider.config.model}",
+            mode="LIVE", engine="kimi", provider="kimi", generated_by=f"{self.provider.name}:{self.provider.config.model}",
             overview=overview_piece.text, sections=sections,
             key_concepts=[KeyConcept(concept=c.concept, kind=c.kind, first_seconds=c.first_seconds,
                                      first_minute=format_timestamp(c.first_seconds), mentions=c.mentions,
@@ -104,7 +104,7 @@ class LiveSummaryGenerator:
             references=self.lessons._citations(lesson, used),
             method_note=LIVE_METHOD_NOTE, content_notice=self.lessons._notice(lesson),
         )
-        meta = {"generator": f"kimi:{self.provider.config.model}", "llm_calls": calls, "total_tokens": tokens,
+        meta = {"generator": f"{self.provider.name}:{self.provider.config.model}", "llm_calls": calls, "total_tokens": tokens,
                 "chapters": len(sections)}
         logger.info("Resumen Kimi generado: %d llamadas, %d tokens", calls, tokens)
         return response.model_dump(mode="json", exclude={"cache", "provider_notice", "telemetry_notice"}), meta

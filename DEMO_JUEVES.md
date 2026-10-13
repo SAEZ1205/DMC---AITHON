@@ -70,6 +70,32 @@ cd C:\Users\Admin\Documents\DMC---AITHON\ai-service
 ```
 No consumen tokens ni usan la red (Kimi se simula). Las pruebas contra los archivos reales se omiten solas si `demo-assets\` no existe.
 
+## 8b. (Opcional) Chat con Kimi K3 vía NVIDIA Build — **no es necesario para la demo**
+Por defecto la demo corre en **DEMO** (sin red). La integración con NVIDIA está lista pero **apagada**. Tu `ai-service\.env` ya tiene `NVIDIA_API_KEY`
+(esta guía no la lee ni la muestra). Para usarla, sigue estos pasos **en orden** y detente ante cualquier error:
+
+1. **Comprueba que `.env` está ignorado por Git:** `git check-ignore -v ai-service/.env` debe responder con una regla. Nunca lo subas.
+2. **Primera prueba real (una sola solicitud, texto ficticio; necesita tu autorización explícita):**
+   ```powershell
+   cd C:\Users\Admin\Documents\DMC---AITHON\ai-service
+   .\.venv\Scripts\python.exe scripts\verify_nvidia_live.py --i-authorize-one-nvidia-request
+   ```
+   Informa código HTTP, modelo, tokens y si la respuesta vino de NVIDIA. Si falla, se detiene (sin reintentos). Si dice `HTTP 403/404`, tu cuenta/clave
+   no tiene acceso al modelo `moonshotai/kimi-k3`: el sistema seguirá en DEMO. Si dice que el razonamiento agotó los tokens, repite con `--max-tokens 1000`.
+3. **Solo si el paso 2 salió bien**, para probar el chat con el curso FICTICIO de SQL, añade a `ai-service\.env` (sin comillas):
+   ```
+   LLM_PROVIDER=nvidia
+   LLM_LIVE_AUTHORIZED=true
+   ```
+   Reinicia el backend y comprueba `/health`: `llm.active_provider` = `nvidia-kimi`, `mode` = `LIVE`.
+4. **La clase real NO se envía a NVIDIA** mientras `NVIDIA_ALLOW_CLASS_CONTENT=false` (por defecto): su chat responde en modo DEMO con un aviso visible.
+   Para cambiarlo hace falta tu autorización expresa: NVIDIA puede registrar lo que reciba. Antes, ejecuta `scripts\review_privacy.py` y revisa
+   `ai-service\data\real\revision_privacidad.md` (ignorado por Git).
+5. **Para volver a DEMO:** borra o comenta `LLM_PROVIDER` y `LLM_LIVE_AUTHORIZED` en `.env` y reinicia.
+
+Límites y costos: el acceso de prueba de NVIDIA es gratuito para prototipos pero **con límites de uso** (no publicados en la documentación consultada); un `429`
+significa límite alcanzado: el sistema espera y no reintenta. No es un servicio para producción.
+
 ## 9. (Opcional) Resumen con Kimi — **de pago, no es necesario para la demo**
 Requiere `LLM_PROVIDER=kimi`, `LLM_API_KEY`, `LLM_LIVE_AUTHORIZED=true` y `ADMIN_API_TOKEN` en `ai-service\.env`. Genera el resumen por fragmentos
 (~21 llamadas para esta clase: una por capítulo + una de reducción; revisa el precio vigente de Kimi antes) con:

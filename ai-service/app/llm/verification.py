@@ -43,14 +43,23 @@ class VerifiedAnswer:
     cited_indices: Tuple[int, ...]  # posiciones en context.evidence realmente usadas
 
 
-def parse_model_json(content: str) -> Dict[str, Any]:
-    """Extrae el objeto JSON de la respuesta del modelo (tolera un bloque ```json```)."""
+_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+
+
+def parse_model_json(content: str, lenient: bool = False) -> Dict[str, Any]:
+    """
+    Extrae el objeto JSON de la respuesta del modelo (tolera un bloque ```json```).
+    `lenient=True` (modelos con razonamiento sin modo JSON garantizado): ignora bloques <think> y toma el objeto
+    {...} más externo aunque haya texto alrededor. Sigue exigiendo un JSON completo y válido.
+    """
     if not isinstance(content, str) or not content.strip():
         raise LLMMalformedResponse("contenido vacío")
-    body = content.strip()
+    body = _THINK_RE.sub("", content).strip() if lenient else content.strip()
     fence = _FENCE_RE.match(body)
     if fence:
         body = fence.group(1)
+    if lenient and not body.startswith("{") and "{" in body and "}" in body:
+        body = body[body.index("{"): body.rindex("}") + 1]
     try:
         data = json.loads(body)
     except json.JSONDecodeError as exc:

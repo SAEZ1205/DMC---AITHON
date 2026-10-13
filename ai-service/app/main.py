@@ -24,7 +24,7 @@ from app.config import BASE_DIR, DATA_DIR, AcademicConfig, LLMConfig, settings
 from app.knowledge.quiz_bank import QuizBank
 from app.knowledge.real_lesson import load_real_lesson, register_real_lesson, write_local_reports
 from app.knowledge.retriever import KnowledgeRetriever, retriever as default_retriever
-from app.llm import DemoProvider, KimiProvider, LLMProvider, ProviderSelection, select_provider
+from app.llm import DemoProvider, KimiProvider, LLMProvider, NvidiaKimiProvider, ProviderSelection, select_provider
 from app.services.guardian import HeuristicGuardian, LLMGuardian
 from app.services.lesson_service import LessonService
 from app.services.live_summary import LiveSummaryGenerator
@@ -85,6 +85,9 @@ def create_app(
     telemetry = TelemetryService(academic_store, academic_cfg)
     heuristic = HeuristicGuardian(kb)
     live_provider = selection.provider if isinstance(selection.provider, KimiProvider) else None
+    if isinstance(live_provider, NvidiaKimiProvider) and real is not None:
+        # El servicio de prueba de NVIDIA puede registrar entradas y salidas: la clase REAL no sale sin autorización expresa.
+        live_provider.restrict_lesson(real.lesson.course_id, real.lesson.lesson_id)
     guardian = LLMGuardian(live_provider, kb, heuristic) if live_provider else heuristic
     service = TutorService(kb, store, selection.provider, fallback_provider=fallback, telemetry=telemetry, guardian=guardian,
                            privacy=real.privacy if real is not None else None)

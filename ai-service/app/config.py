@@ -64,6 +64,10 @@ class LLMConfig:
     max_live_calls: int = 100           # tope de llamadas LIVE por proceso (0 = sin tope)
     max_history_messages: int = 6
     max_evidence: int = 3
+    # --- solo NVIDIA Build (ignorados por el proveedor Moonshot) ---
+    max_tokens_param: str = "max_completion_tokens"   # o "max_tokens", según lo que acepte el endpoint
+    json_mode: bool = False                           # enviar response_format=json_object (no documentado para NVIDIA: apagado)
+    allow_class_content: bool = False                 # ¿se puede enviar la transcripción de la clase REAL a este proveedor?
 
     def __repr__(self) -> str:          # nunca imprimir la clave
         return (f"LLMConfig(provider={self.provider!r}, model={self.model!r}, base_url={self.base_url!r}, "
@@ -101,6 +105,16 @@ class Settings:
     LLM_MAX_HISTORY_MESSAGES: int = _env_int("LLM_MAX_HISTORY_MESSAGES", 6)
     LLM_MAX_EVIDENCE: int = _env_int("LLM_MAX_EVIDENCE", 3, minimum=1)
 
+    # NVIDIA Build (Kimi alojado). La clave vive SOLO en el entorno / ai-service/.env (ignorado por Git).
+    NVIDIA_API_KEY: str = os.getenv("NVIDIA_API_KEY", "").strip()
+    NVIDIA_MODEL: str = os.getenv("NVIDIA_MODEL", "moonshotai/kimi-k3").strip()
+    NVIDIA_BASE_URL: str = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1").strip().rstrip("/")
+    NVIDIA_MAX_OUTPUT_TOKENS: int = _env_int("NVIDIA_MAX_OUTPUT_TOKENS", 1200, minimum=16)
+    NVIDIA_TIMEOUT_SECONDS: float = float(os.getenv("NVIDIA_TIMEOUT_SECONDS", "60"))
+    NVIDIA_MAX_TOKENS_PARAM: str = os.getenv("NVIDIA_MAX_TOKENS_PARAM", "max_completion_tokens").strip()
+    NVIDIA_JSON_MODE: bool = _env_bool("NVIDIA_JSON_MODE", False)
+    NVIDIA_ALLOW_CLASS_CONTENT: bool = _env_bool("NVIDIA_ALLOW_CLASS_CONTENT", False)
+
     # Quizzes, micro-pregunta y telemetría (Etapa 4)
     QUIZ_PASS_THRESHOLD_PERCENT: float = float(os.getenv("QUIZ_PASS_THRESHOLD_PERCENT", "60"))
     QUIZ_MAX_ATTEMPTS_PER_LESSON: int = _env_int("QUIZ_MAX_ATTEMPTS_PER_LESSON", 3, minimum=1)
@@ -133,6 +147,8 @@ class Settings:
     @property
     def is_demo_mode(self) -> bool:
         """Modo DEMO salvo que haya proveedor real, clave Y autorización explícita de presupuesto."""
+        if self.LLM_PROVIDER == "nvidia":
+            return not self.NVIDIA_API_KEY or not self.LLM_LIVE_AUTHORIZED
         if self.LLM_PROVIDER not in ("kimi", "moonshot") or not self.LLM_API_KEY:
             return True
         return not self.LLM_LIVE_AUTHORIZED
@@ -150,7 +166,30 @@ class Settings:
             telemetry_pseudonym_salt=self.TELEMETRY_PSEUDONYM_SALT,
         )
 
+    def nvidia_config(self) -> LLMConfig:
+        """Configuración del proveedor NVIDIA (independiente de LLM_PROVIDER: la usan también los scripts de prueba)."""
+        return LLMConfig(
+            provider="nvidia",
+            api_key=self.NVIDIA_API_KEY,
+            base_url=self.NVIDIA_BASE_URL,
+            model=self.NVIDIA_MODEL,
+            timeout_seconds=self.NVIDIA_TIMEOUT_SECONDS,
+            max_output_tokens=self.NVIDIA_MAX_OUTPUT_TOKENS,
+            thinking=self.LLM_THINKING,
+            reasoning_effort=self.LLM_REASONING_EFFORT,
+            fallback_to_demo=self.LLM_FALLBACK_TO_DEMO,
+            live_authorized=self.LLM_LIVE_AUTHORIZED,
+            max_live_calls=self.LLM_MAX_LIVE_CALLS,
+            max_history_messages=self.LLM_MAX_HISTORY_MESSAGES,
+            max_evidence=self.LLM_MAX_EVIDENCE,
+            max_tokens_param=self.NVIDIA_MAX_TOKENS_PARAM,
+            json_mode=self.NVIDIA_JSON_MODE,
+            allow_class_content=self.NVIDIA_ALLOW_CLASS_CONTENT,
+        )
+
     def llm_config(self) -> LLMConfig:
+        if self.LLM_PROVIDER == "nvidia":
+            return self.nvidia_config()
         return LLMConfig(
             provider=self.LLM_PROVIDER,
             api_key=self.LLM_API_KEY,

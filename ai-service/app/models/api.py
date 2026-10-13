@@ -41,6 +41,10 @@ class LLMHealth(BaseModel):
     fallback_to_demo: bool
     live_calls_used: Optional[int] = None
     live_calls_limit: Optional[int] = None
+    provider_status: Optional[Dict[str, Any]] = Field(
+        default=None, description="Estado operativo del proveedor externo (ok | paused con el motivo preciso); sin credenciales")
+    class_content_authorized: Optional[bool] = Field(
+        default=None, description="NVIDIA: ¿está autorizado enviar contenido de la clase real? (NVIDIA_ALLOW_CLASS_CONTENT)")
 
 
 class HealthResponse(BaseModel):

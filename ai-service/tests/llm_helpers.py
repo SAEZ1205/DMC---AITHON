@@ -84,3 +84,40 @@ def json_response(body, status=200):
 
 def error_response(status, err_type="invalid_authentication_error"):
     return httpx.Response(status, json={"error": {"message": "mensaje interno del proveedor", "type": err_type}})
+
+
+# --------------------------------------------------------------- NVIDIA Build (simulado)
+from app.config import LLMConfig as _LLMConfig  # noqa: E402
+
+FAKE_NVIDIA_KEY = "nvapi-FAKE-TEST-KEY-not-a-real-credential-0000"
+REASONING_SECRET = "razonamiento-privado-NO-DEBE-SALIR"
+
+NVIDIA_CONFIG = _LLMConfig(
+    provider="nvidia",
+    api_key=FAKE_NVIDIA_KEY,
+    base_url="https://integrate.api.nvidia.com/v1",
+    model="moonshotai/kimi-k3",
+    live_authorized=True,
+    fallback_to_demo=True,
+    timeout_seconds=5.0,
+    max_output_tokens=800,
+    reasoning_effort="low",
+)
+
+
+def nv_completion(inner=None, finish_reason="stop", model="moonshotai/kimi-k3", reasoning=REASONING_SECRET, content=None,
+                  reasoning_tokens=120):
+    """Respuesta tipo NVIDIA: `content` (JSON del tutor) + `reasoning_content` aparte, como documenta el modelo."""
+    message = {"role": "assistant", "content": content if content is not None else json.dumps(inner, ensure_ascii=False)}
+    if reasoning is not None:
+        message["reasoning_content"] = reasoning
+    return {
+        "id": "chatcmpl-nv-test", "object": "chat.completion", "created": 0, "model": model,
+        "choices": [{"index": 0, "message": message, "finish_reason": finish_reason}],
+        "usage": {"prompt_tokens": 300, "completion_tokens": 200, "total_tokens": 500,
+                  "completion_tokens_details": {"reasoning_tokens": reasoning_tokens}},
+    }
+
+
+def nv_error(status, title="Error", detail="detalle interno del servidor que no debe propagarse", headers=None):
+    return httpx.Response(status, json={"status": status, "title": title, "detail": detail}, headers=headers or {})

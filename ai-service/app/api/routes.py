@@ -64,6 +64,8 @@ def health(request: Request):
         fallback_to_demo=service.fallback_provider is not None,
         live_calls_used=budget.used if budget else None,
         live_calls_limit=budget.limit if budget else None,
+        provider_status=getattr(service.provider, "provider_status", lambda: None)(),
+        class_content_authorized=config.allow_class_content if getattr(service.provider, "name", "") == "nvidia-kimi" else None,
     )
     ok = storage.status == "ok"
     body = HealthResponse(

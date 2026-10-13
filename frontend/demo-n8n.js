@@ -103,7 +103,7 @@
   async function loadSummary() {
     const s = await api(`/api/courses/${lesson.course_id}/lessons/${lesson.lesson_id}/summary?engine=best`);
     const badges = $("summaryBadges");
-    const engineLabel = s.engine === "kimi" ? `Generado con Kimi (${s.generated_by.replace("kimi:", "")})` : "Resumen heurístico DEMO (sin modelo de lenguaje)";
+    const engineLabel = s.engine === "kimi" ? `Generado con ${s.generated_by}` : "Resumen heurístico DEMO (sin modelo de lenguaje)";
     badges.append(el("span", "demo-pill" + (s.engine === "kimi" ? " live" : " warn"), engineLabel));
     badges.append(el("span", "demo-pill", s.cache.cached ? "Reutilizado desde la base de datos" : "Generado ahora"));
     badges.append(el("span", "demo-pill", `Generado: ${new Date(s.cache.generated_at).toLocaleString()}`));
@@ -156,7 +156,8 @@
     }
 
     const meta = el("div", "meta");
-    meta.append(el("span", "demo-pill" + (reply.mode === "LIVE" ? " live" : ""), `Respuesta: ${reply.mode}`));
+    meta.append(el("span", "demo-pill" + (reply.mode === "LIVE" ? " live" : ""),
+      reply.mode === "LIVE" ? `Respuesta: LIVE · ${reply.provider}${reply.model ? " · " + reply.model : ""}` : "Respuesta: DEMO"));
     if (reply.guardian) {
       const g = reply.guardian;
       const names = { relevant: "pertinente", not_relevant: "no pertinente", uncertain: "pertinencia incierta" };
