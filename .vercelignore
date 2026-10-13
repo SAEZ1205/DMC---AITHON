@@ -1,4 +1,7 @@
 .git
+.vercel
+.env*
+!backend/.env.example
 **/__pycache__
 **/.pytest_cache
 backend/.venv

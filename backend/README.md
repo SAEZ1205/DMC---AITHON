@@ -117,6 +117,23 @@ Reloj fijo: `SIM_NOW=2026-10-12T19:00:00`. Si tocaste la base durante pruebas, v
 3. **Vista móvil**  
    DevTools ≤ 390 px en `progress.html` / `recording.html` / `tutor.html`: menú hamburguesa, avance y recuperación usables.
 
+## Despliegue en Vercel
+
+Demo pública: **https://dmc-aithon.vercel.app** (proyecto `dmc-aithon`, desplegado con la CLI desde la rama `mateo`, sin integración Git).
+
+- `pyproject.toml` (raíz) apunta a `backend.app.main:app` y declara las dependencias. El frontend se sirve desde el CDN gracias al `StaticFiles` de FastAPI.
+- El build (`backend/scripts/vercel_build.py`) genera la cohorte y `backend/data/dmc.db` con el reloj de la demo.
+- Al arrancar, la función copia esa base a `/tmp/dmc.db` (el bundle es de solo lectura). Los cambios (quiz, contactos, chat) duran mientras viva la instancia; tras unos minutos sin tráfico la demo vuelve al estado inicial.
+- El recálculo horario (APScheduler) se desactiva en Vercel.
+- Variables: `SIM_NOW` en Producción. Para usar Kimi, agrega `LLM_API_KEY` con `vercel env add LLM_API_KEY production` y vuelve a desplegar.
+- `.vercelignore` excluye `.venv`, `.env`, tests, datos de Zoom/cohorte y la base local.
+
+Redesplegar (desde la raíz del repo, en la rama `mateo`):
+
+```powershell
+vercel deploy --prod
+```
+
 ## Estructura
 
 ```

@@ -76,6 +76,10 @@ Los tramos clave de la sesión de muestra suman ~83 min (46 % de 3 h). Con el in
 - `backend/.env` no se versiona; plantilla en `.env.example`.
 - Consentimiento (Ley 29733) versionado (`CONSENT_VERSION`); el modal aparece a los alumnos hasta que aceptan.
 
+## Despliegue en Vercel
+
+Se optó por un **snapshot SQLite** en lugar de una base gestionada: el build genera la base de demo y cada instancia la copia a `/tmp` al arrancar. Ventajas: cero servicios externos y costo nulo, y la demo se reinicia sola. Límites: los cambios no persisten entre instancias ni tras inactividad. Si el MVP pasa a piloto real, migrar a Postgres (Neon vía Vercel Marketplace) y reemplazar APScheduler por Vercel Cron sobre `/api/admin/recompute`. El proyecto se despliega con la CLI (sin integración Git) para no disparar despliegues desde otras ramas del repositorio compartido.
+
 ## Alcance fuera del MVP
 
 Encuesta final y pagos aparecen en «Mi avance» como `pendiente_verificar`. El servicio `ai-service/` del repo original no se usa; toda la lógica de IA está en `backend/`.

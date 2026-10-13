@@ -14,3 +14,8 @@ backend/data/sample/**/*.mp4
 *.db
 *.db-wal
 *.db-shm
+
+# Vercel (proyecto enlazado y token OIDC local)
+.vercel
+.env*
+!.env.example
