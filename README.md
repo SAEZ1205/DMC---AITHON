@@ -1,37 +1,46 @@
-# DMC - IATHON
+# DMC — IATHON
 
-Base del frontend para la réplica de DMC Institute.
+Réplica del portal de DMC Institute con el MVP de **asistencia efectiva**, diagnóstico y rescate (rama `mateo`).
+
+## Cómo correr el MVP
+
+El backend FastAPI sirve el frontend en el mismo puerto. Instrucciones completas, variables de entorno y guion de demo:
+
+→ **[`backend/README.md`](backend/README.md)**
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+copy .env.example .env
+python scripts/seed_demo.py
+uvicorn app.main:app --reload --port 8000
+```
+
+Abre `http://localhost:8000` y usa **Entrar como alumno** / **Entrar como tutor**.
+
+Documentación:
+
+- [`docs/SOLUCION_DMC_CURSOR.md`](docs/SOLUCION_DMC_CURSOR.md) — especificación del reto
+- [`docs/DECISIONES.md`](docs/DECISIONES.md) — decisiones de implementación
 
 ## Estructura
 
-- `frontend/`: interfaz visual del proyecto. Esta carpeta puede trabajarse sin tocar la futura lógica de IA.
-- `ai-service/`: reservado para la integración del asistente/IA del equipo.
+| Carpeta | Contenido |
+|---|---|
+| `frontend/` | Portal DMC (páginas existentes + vistas del MVP: grabación, avance, seguimiento) |
+| `backend/` | API, motores de asistencia/diagnóstico/alertas, cohorte sintética, LLM |
+| `docs/` | Especificación y decisiones |
+| `ai-service/` | Reservado por el repo base (no usado por este MVP) |
 
-## Ejecutar localmente
+## Solo frontend (sin API)
 
-### Opción 1: Python
+Si solo quieres ver el HTML estático:
 
-```bash
-git clone https://github.com/SAEZ1205/DMC---AITHON.git
-cd DMC---AITHON\frontend
+```powershell
+cd frontend
 python -m http.server 5500
 ```
 
-Luego abre en el navegador:
-
-`http://localhost:5500`
-
-### Opción 2: Node.js
-
-```bash
-git clone https://github.com/SAEZ1205/DMC---AITHON.git
-cd DMC---AITHON\frontend
-npx serve .
-```
-
-## Pantallas actuales
-
-- `index.html`: login estilo DMC Institute.
-- `dashboard.html`: área personal con menú lateral, barra superior, menú de perfil y curso reciente.
-
-Por ahora el login es solo demostrativo: cualquier usuario/contraseña o el botón de invitado abre el área personal. La conexión real se hará posteriormente mediante API/backend.
+Sin el backend no hay login de demo, asistencia efectiva ni chat.
