@@ -1,0 +1,38 @@
+WEBVTT
+
+NOTE
+title: Clase 1 — Introducción a SQL (DEMO)
+course_id: sql-demo
+lesson_id: clase-01-introduccion-sql
+is_official_dmc: false
+disclaimer: MATERIAL FICTICIO. Transcripción DEMOSTRATIVA escrita para el MVP de DMC RescuePath AI. No corresponde a ninguna grabación real ni es material oficial de DMC Institute.
+
+NOTE
+Docente ficticio: "Docente Demo". Los tiempos son inventados para probar la citación por minutos.
+
+00:00:00.000 --> 00:00:42.000
+<v Docente Demo>Bienvenidos a la primera clase. Hoy veremos qué es SQL, cómo se organiza una base de datos relacional y escribiremos nuestras primeras consultas.
+
+00:00:42.000 --> 00:01:35.000
+<v Docente Demo>Una base de datos relacional guarda la información en tablas. Cada tabla tiene columnas, que describen los atributos, y filas, que son los registros. Por ejemplo, una tabla de estudiantes con nombre, correo y calificación.
+
+00:01:35.000 --> 00:02:30.000
+<v Docente Demo>Cada fila debe poder identificarse de forma única. Para eso existe la clave primaria: una columna, como id_estudiante, cuyo valor no se repite en ninguna otra fila de la tabla.
+
+00:02:30.000 --> 00:03:28.000
+<v Docente Demo>Ahora sí, la instrucción SELECT. Con SELECT elegimos qué columnas queremos ver. Podemos usar el asterisco para traer todas, pero conviene nombrar solo las columnas que necesitamos, por ejemplo SELECT nombre, correo FROM estudiantes.
+
+00:03:28.000 --> 00:04:25.000
+<v Docente Demo>Algo importante: SELECT no modifica los datos, solo los lee. También podemos ponerle un alias a una columna con la palabra AS para que el resultado se entienda mejor.
+
+00:04:25.000 --> 00:05:30.000
+<v Docente Demo>Para filtrar filas usamos la cláusula WHERE. Por ejemplo, WHERE calificacion mayor o igual a 14 deja solo a los estudiantes aprobados. Podemos combinar condiciones con AND y OR, y conviene usar paréntesis para que la lógica sea clara.
+
+00:05:30.000 --> 00:06:22.000
+<v Docente Demo>Cuando buscamos texto, el operador LIKE nos permite encontrar patrones. Por ejemplo, nombres que empiezan con la letra A. El comodín porcentaje representa cualquier cantidad de caracteres.
+
+00:06:22.000 --> 00:07:20.000
+<v Docente Demo>Por último, ORDER BY sirve para ordenar el resultado. Puede ser ascendente, ASC, que es el valor por defecto, o descendente, DESC. Sin ORDER BY, la base de datos no garantiza ningún orden en las filas.
+
+00:07:20.000 --> 00:08:05.000
+<v Docente Demo>Para cerrar: practiquen SELECT, WHERE y ORDER BY con la tabla de estudiantes. En la próxima clase veremos cómo combinar varias tablas.

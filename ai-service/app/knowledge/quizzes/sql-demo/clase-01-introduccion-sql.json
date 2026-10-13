@@ -1,0 +1,112 @@
+{
+  "course_id": "sql-demo",
+  "lesson_id": "clase-01-introduccion-sql",
+  "disclaimer": "BANCO DEMOSTRATIVO redactado para el MVP de DMC RescuePath AI a partir de una transcripción ficticia. No es material oficial de DMC Institute.",
+  "questions": [
+    {
+      "question_id": "c1-q01",
+      "concept": "Tablas, filas y columnas",
+      "prompt": "Según la clase, en una tabla de una base de datos relacional, ¿qué representan las filas?",
+      "options": ["Los registros", "Los atributos", "Las claves foráneas", "Los índices"],
+      "correct_index": 0,
+      "explanation": "El docente explica que las columnas describen los atributos y que las filas son los registros de la tabla.",
+      "segment_id": 1,
+      "evidence_quote": "filas, que son los registros"
+    },
+    {
+      "question_id": "c1-q02",
+      "concept": "Clave primaria",
+      "prompt": "¿Qué característica tiene la clave primaria según el docente?",
+      "options": [
+        "Su valor no se repite en ninguna otra fila de la tabla",
+        "Puede repetirse en varias filas si la tabla es grande",
+        "Solo sirve para ordenar los resultados",
+        "Es el nombre de la tabla"
+      ],
+      "correct_index": 0,
+      "explanation": "La clave primaria identifica cada fila de forma única: es una columna cuyo valor no se repite en ninguna otra fila.",
+      "segment_id": 2,
+      "evidence_quote": "cuyo valor no se repite"
+    },
+    {
+      "question_id": "c1-q03",
+      "concept": "SELECT",
+      "prompt": "¿Qué ocurre con los datos de la tabla cuando se ejecuta una consulta SELECT?",
+      "options": [
+        "No se modifican; solo se leen",
+        "Se eliminan las filas mostradas",
+        "Se ordenan de forma permanente en la tabla",
+        "Se copian a una tabla nueva"
+      ],
+      "correct_index": 0,
+      "explanation": "El docente aclara que SELECT no modifica los datos, solo los lee.",
+      "segment_id": 4,
+      "evidence_quote": "SELECT no modifica los datos, solo los lee"
+    },
+    {
+      "question_id": "c1-q04",
+      "concept": "SELECT",
+      "prompt": "¿Qué recomienda el docente respecto a traer todas las columnas con el asterisco en un SELECT?",
+      "options": [
+        "Conviene nombrar solo las columnas que se necesitan",
+        "Conviene usarlo siempre para mayor claridad",
+        "Está prohibido en SQL",
+        "Sirve para filtrar filas"
+      ],
+      "correct_index": 0,
+      "explanation": "Se puede usar el asterisco para traer todas las columnas, pero el docente recomienda nombrar solo las que se necesitan.",
+      "segment_id": 3,
+      "evidence_quote": "conviene nombrar solo las columnas que necesitamos"
+    },
+    {
+      "question_id": "c1-q05",
+      "concept": "WHERE",
+      "prompt": "¿Qué cláusula se usa en la clase para filtrar filas?",
+      "options": ["WHERE", "ORDER BY", "SELECT", "FROM"],
+      "correct_index": 0,
+      "explanation": "El docente indica que para filtrar filas se usa la cláusula WHERE.",
+      "segment_id": 5,
+      "evidence_quote": "Para filtrar filas usamos la cláusula WHERE"
+    },
+    {
+      "question_id": "c1-q06",
+      "concept": "LIKE",
+      "prompt": "¿Qué representa el comodín porcentaje en un patrón con LIKE?",
+      "options": [
+        "Cualquier cantidad de caracteres",
+        "Exactamente un carácter",
+        "Un número entre 0 y 100",
+        "El final de la consulta"
+      ],
+      "correct_index": 0,
+      "explanation": "Según el docente, el comodín porcentaje representa cualquier cantidad de caracteres.",
+      "segment_id": 6,
+      "evidence_quote": "El comodín porcentaje representa cualquier cantidad de caracteres"
+    },
+    {
+      "question_id": "c1-q07",
+      "concept": "ORDER BY",
+      "prompt": "¿Qué ocurre si una consulta no incluye ORDER BY?",
+      "options": [
+        "La base de datos no garantiza ningún orden en las filas",
+        "Las filas salen siempre en orden ascendente",
+        "La consulta produce un error",
+        "Las filas salen ordenadas por la clave primaria"
+      ],
+      "correct_index": 0,
+      "explanation": "El docente advierte que sin ORDER BY la base de datos no garantiza ningún orden en las filas.",
+      "segment_id": 7,
+      "evidence_quote": "Sin ORDER BY, la base de datos no garantiza ningún orden"
+    },
+    {
+      "question_id": "c1-q08",
+      "concept": "ORDER BY",
+      "prompt": "¿Cuál es el valor por defecto del orden en ORDER BY?",
+      "options": ["Ascendente (ASC)", "Descendente (DESC)", "Aleatorio", "Alfabético inverso"],
+      "correct_index": 0,
+      "explanation": "El docente explica que el orden puede ser ascendente, ASC, que es el valor por defecto, o descendente, DESC.",
+      "segment_id": 7,
+      "evidence_quote": "ascendente, ASC, que es el valor por defecto"
+    }
+  ]
+}

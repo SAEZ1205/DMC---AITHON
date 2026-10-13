@@ -1,0 +1,27 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+.env
+
+# Base de datos SQLite local
+data/*.db
+*.sqlite
+*.sqlite3
+
+# Pruebas y cobertura
+.pytest_cache/
+.coverage
+htmlcov/
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+
+# Informes locales de la clase real (contienen fragmentos de la grabación)
+data/real/

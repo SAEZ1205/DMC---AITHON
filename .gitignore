@@ -1,0 +1,13 @@
+# Material de la clase de demostración (PRIVADO: video real y transcripción con posibles datos personales).
+# Nunca debe subirse al repositorio ni a servicios externos.
+demo-assets/
+
+# Datos derivados de la clase real (caché del resumen, índices) y bases locales
+ai-service/data/*.db
+ai-service/data/*.db-journal
+ai-service/data/real/
+
+# Entornos y secretos
+.env
+.venv/
+**/.env

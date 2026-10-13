@@ -1,0 +1,8 @@
+{
+  "interval_note": "Una sola micro-pregunta breve por periodo (por defecto cada 14 días), rotando el texto. La respuesta es siempre opcional.",
+  "questions": [
+    {"question_id": "mq-horario", "prompt": "¿Cómo te está acomodando el horario del curso estas semanas?"},
+    {"question_id": "mq-ritmo", "prompt": "¿Cómo sientes el ritmo de las clases en estas semanas?"},
+    {"question_id": "mq-contenido", "prompt": "¿Hay algún tema de las últimas clases que te haya costado más de lo esperado?"}
+  ]
+}

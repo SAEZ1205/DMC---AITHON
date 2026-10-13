@@ -1,0 +1,87 @@
+﻿{
+  "course_id": "sql-demo",
+  "course_name": "SQL Fundamentals — DEMO",
+  "version": "1.0.0-mvp",
+  "is_official_dmc": false,
+  "disclaimer": "AVISO: Este material didáctico es DEMOSTRATIVO y ha sido elaborado específicamente para el MVP de DMC RescuePath AI. No constituye material curricular oficial de DMC Institute.",
+  "description": "Curso introductorio de SQL diseñado para estudiantes de tecnología y análisis de datos en DMC Institute.",
+  "topics": [
+    {
+      "id": "select",
+      "title": "SELECT — Proyección de Columnas",
+      "keywords": ["select", "columnas", "campos", "consultar", "proyeccion", "listar"],
+      "summary": "La instrucción SELECT especifica qué columnas se desean recuperar de una o más tablas.",
+      "content": "SELECT es la cláusula fundamental de SQL para consultar datos. Permite proyectar columnas específicas de una tabla o utilizar el comodín asterisco (*) para traer todas las columnas. En entornos productivos se recomienda nombrar explícitamente las columnas necesarias para optimizar ancho de banda y rendimiento.",
+      "code_example": "SELECT nombre, email, fecha_ingreso\nFROM estudiantes;",
+      "socratic_prompt": "¿Qué columnas específicas necesita tu reporte y qué tabla almacena esos datos?",
+      "pedagogical_tip": "Recuerda que SELECT no modifica los datos en la base; únicamente genera una vista de lectura.",
+      "reference": "ref:sql-demo/select"
+    },
+    {
+      "id": "where",
+      "title": "WHERE — Filtrado Condicional de Filas",
+      "keywords": ["where", "filtrar", "filtro", "condicion", "condiciones", "criterio"],
+      "summary": "La cláusula WHERE restringe las filas devueltas según una o más condiciones booleanas.",
+      "content": "WHERE evalúa una condición lógica para cada registro de la tabla. Solo las filas donde la expresión resulte VERDADERA (TRUE) formarán parte del resultado. Admite operadores de comparación (=, <>, <, >, <=, >=) y lógicos (AND, OR, NOT), así como BETWEEN, IN y LIKE.",
+      "code_example": "SELECT nombre, calificacion\nFROM estudiantes\nWHERE calificacion >= 14 AND activo = 1;",
+      "socratic_prompt": "Si quisieras filtrar solo los alumnos con asistencia mayor al 60%, ¿qué condición colocarías después de WHERE?",
+      "pedagogical_tip": "Ten cuidado con el uso de OR sin paréntesis cuando combines múltiples condiciones con AND.",
+      "reference": "ref:sql-demo/where"
+    },
+    {
+      "id": "order_by",
+      "title": "ORDER BY — Ordenamiento de Resultados",
+      "keywords": ["order by", "ordenar", "orden", "ascendente", "descendente", "asc", "desc"],
+      "summary": "ORDER BY define el orden en que se presentan las filas en el conjunto de resultados.",
+      "content": "Por defecto, las bases de datos relacionales no garantizan ningún orden físico de los registros. ORDER BY permite ordenar de forma ascendente (ASC, valor por defecto) o descendente (DESC). Es posible ordenar por múltiples columnas separadas por comas.",
+      "code_example": "SELECT nombre, calificacion, fecha_entrega\nFROM entregas\nORDER BY calificacion DESC, fecha_entrega ASC;",
+      "socratic_prompt": "¿El negocio necesita ver primero los valores más recientes o los más antiguos? ¿Qué modificador usarías?",
+      "pedagogical_tip": "ORDER BY se ejecuta en las etapas finales del procesamiento de una consulta SQL.",
+      "reference": "ref:sql-demo/order-by"
+    },
+    {
+      "id": "inner_join",
+      "title": "INNER JOIN — Intersección y Coincidencia Exacta",
+      "keywords": ["inner join", "join", "relacionar", "combinar", "tablas", "clave foranea", "foreign key", "on"],
+      "summary": "INNER JOIN combina filas de dos o más tablas cuando existe una coincidencia exacta en la condición especificada.",
+      "content": "INNER JOIN representa la intersección matemática entre dos tablas. Solo devuelve filas cuando la clave primaria de una tabla coincide con la clave foránea de la otra tabla según la cláusula ON. Si un estudiante no tiene cursos matriculados, no aparecerá en el resultado de un INNER JOIN.",
+      "code_example": "SELECT e.nombre AS estudiante, c.nombre_curso, m.nota_final\nFROM estudiantes e\nINNER JOIN matriculas m ON e.id_estudiante = m.id_estudiante\nINNER JOIN cursos c ON m.id_curso = c.id_curso;",
+      "socratic_prompt": "Imagina que tienes una tabla de 'estudiantes' y otra de 'cursos_matriculados'. ¿Qué columna crees que compartirían ambas tablas para poder relacionarlas?",
+      "pedagogical_tip": "Usa alias de tabla cortos (e, m, c) para hacer las consultas legibles y evitar ambigüedad en nombres de columnas.",
+      "reference": "ref:sql-demo/inner-join"
+    },
+    {
+      "id": "left_join",
+      "title": "LEFT JOIN — Conservación de la Tabla Izquierda",
+      "keywords": ["left join", "left outer join", "valores nulos", "null", "tabla izquierda", "preservar"],
+      "summary": "LEFT JOIN devuelve todas las filas de la tabla izquierda, junto con las coincidencias de la tabla derecha o NULL si no existen.",
+      "content": "A diferencia de INNER JOIN, LEFT JOIN garantiza que ninguna fila de la tabla izquierda se descarte. Si una fila de la izquierda no encuentra coincidencia en la derecha, las columnas de la tabla derecha se rellenan con NULL. Es ideal para identificar entidades sin actividad (por ejemplo: alumnos inscritos que aún no han entregado tareas).",
+      "code_example": "SELECT e.nombre, t.titulo_tarea, t.calificacion\nFROM estudiantes e\nLEFT JOIN tareas t ON e.id_estudiante = t.id_estudiante;",
+      "socratic_prompt": "Si quieres saber qué alumnos de DMC aún NO han registrado asistencia a ninguna clase, ¿qué tabla pondrías a la izquierda y qué condición buscarías en la derecha?",
+      "pedagogical_tip": "Para encontrar registros sin correspondencia, aplica LEFT JOIN y añade WHERE tabla_derecha.id IS NULL.",
+      "reference": "ref:sql-demo/left-join"
+    },
+    {
+      "id": "group_by",
+      "title": "GROUP BY — Agrupación y Resumen de Datos",
+      "keywords": ["group by", "agrupar", "grupos", "resumir", "agregacion", "por categoria"],
+      "summary": "GROUP BY agrupa filas que comparten valores idénticos en columnas específicas para aplicar funciones de agregado.",
+      "content": "GROUP BY reduce múltiples filas en una sola fila resumen por cada combinación de valores en las columnas agrupadas. Cualquier columna en la cláusula SELECT que no esté dentro de una función de agregado (como SUM, AVG, COUNT, MIN, MAX) debe estar incluida obligatoriamente en GROUP BY.",
+      "code_example": "SELECT c.nombre_curso, AVG(m.nota_final) AS promedio_curso\nFROM cursos c\nINNER JOIN matriculas m ON c.id_curso = m.id_curso\nGROUP BY c.nombre_curso;",
+      "socratic_prompt": "¿Deseas obtener una sola fila por cada curso o por cada estudiante? La columna por la que quieras resumir va en tu GROUP BY.",
+      "pedagogical_tip": "Si necesitas filtrar grupos después de haberlos agregado, recuerda usar HAVING en lugar de WHERE.",
+      "reference": "ref:sql-demo/group-by"
+    },
+    {
+      "id": "count",
+      "title": "COUNT — Conteo y Frecuencias",
+      "keywords": ["count", "contar", "total", "cantidad", "frecuencia", "numero de"],
+      "summary": "COUNT es una función de agregado que calcula la cantidad de registros o valores no nulos.",
+      "content": "COUNT(*) cuenta todas las filas del conjunto resultante, incluyendo filas con valores NULL. COUNT(columna) cuenta únicamente las filas donde esa columna específica no sea NULL. COUNT(DISTINCT columna) cuenta los valores únicos distintos.",
+      "code_example": "SELECT id_curso, COUNT(*) AS total_inscritos, COUNT(DISTINCT id_estudiante) AS estudiantes_unicos\nFROM matriculas\nGROUP BY id_curso;",
+      "socratic_prompt": "Si queremos saber cuántos estudiantes asistieron al menos una vez, ¿contarías todas las filas o contarías los IDs de estudiantes distintos?",
+      "pedagogical_tip": "COUNT(*) suele ser más rápido y seguro cuando solo requieres el total de filas que cumplen el filtro.",
+      "reference": "ref:sql-demo/count"
+    }
+  ]
+}

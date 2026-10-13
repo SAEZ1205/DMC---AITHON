@@ -1,0 +1,59 @@
+{
+  "course_id": "sql-demo",
+  "lesson_id": "clase-02-uniones-y-agrupacion",
+  "title": "Clase 2 — Uniones y agrupación (DEMO)",
+  "is_official_dmc": false,
+  "disclaimer": "MATERIAL FICTICIO. Transcripción DEMOSTRATIVA escrita para el MVP de DMC RescuePath AI. No corresponde a ninguna grabación real ni es material oficial de DMC Institute.",
+  "segments": [
+    {
+      "start_seconds": 0,
+      "end_seconds": 50,
+      "text": "Bienvenidos a la segunda clase. Repasamos rápido lo anterior y hoy nos enfocamos en dos temas: combinar varias tablas y resumir datos."
+    },
+    {
+      "start_seconds": 50,
+      "end_seconds": 140,
+      "text": "La información casi nunca vive en una sola tabla. Los estudiantes están en una tabla y sus matrículas en otra. Se relacionan mediante una clave foránea: la matrícula guarda el id_estudiante de quien se inscribió."
+    },
+    {
+      "start_seconds": 140,
+      "end_seconds": 235,
+      "text": "INNER JOIN combina filas de dos tablas cuando hay coincidencia exacta. Escribimos la condición después de la palabra ON, igualando la clave primaria con la clave foránea. Usar alias cortos como e y m hace la consulta más legible."
+    },
+    {
+      "start_seconds": 235,
+      "end_seconds": 330,
+      "text": "Ojo con esto: INNER JOIN solo devuelve las filas que tienen pareja en ambas tablas. Si un estudiante no tiene ninguna matrícula, simplemente no aparece en el resultado."
+    },
+    {
+      "start_seconds": 330,
+      "end_seconds": 430,
+      "text": "Cuando necesitamos conservar todas las filas de la tabla izquierda usamos LEFT JOIN. Si no existe coincidencia en la tabla derecha, esas columnas se rellenan con NULL."
+    },
+    {
+      "start_seconds": 430,
+      "end_seconds": 505,
+      "text": "Un uso muy práctico de LEFT JOIN es encontrar registros sin actividad. Después del join agregamos WHERE con IS NULL sobre la clave de la tabla derecha, y así vemos, por ejemplo, a los estudiantes que aún no tienen matrícula."
+    },
+    {
+      "start_seconds": 505,
+      "end_seconds": 600,
+      "text": "Pasamos a GROUP BY. Agrupar significa reducir muchas filas a una fila resumen por cada grupo. Si agrupamos por curso, obtenemos una sola fila por curso."
+    },
+    {
+      "start_seconds": 600,
+      "end_seconds": 690,
+      "text": "Con GROUP BY usamos funciones de agregado como COUNT y AVG. COUNT asterisco cuenta todas las filas del grupo; COUNT DISTINCT cuenta valores únicos, por ejemplo cuántos estudiantes distintos hay en cada curso."
+    },
+    {
+      "start_seconds": 690,
+      "end_seconds": 760,
+      "text": "Si queremos filtrar los grupos ya calculados, no usamos WHERE sino HAVING. WHERE filtra filas antes de agrupar y HAVING filtra grupos después de agrupar."
+    },
+    {
+      "start_seconds": 760,
+      "end_seconds": 805,
+      "text": "Eso es todo por hoy. Practiquen los joins con las tablas de estudiantes y matrículas, y traigan sus dudas a la siguiente sesión."
+    }
+  ]
+}

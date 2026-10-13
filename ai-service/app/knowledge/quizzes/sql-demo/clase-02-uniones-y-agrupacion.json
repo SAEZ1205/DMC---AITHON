@@ -1,0 +1,97 @@
+{
+  "course_id": "sql-demo",
+  "lesson_id": "clase-02-uniones-y-agrupacion",
+  "disclaimer": "BANCO DEMOSTRATIVO redactado para el MVP de DMC RescuePath AI a partir de una transcripción ficticia. No es material oficial de DMC Institute.",
+  "questions": [
+    {
+      "question_id": "c2-q01",
+      "concept": "Clave foránea",
+      "prompt": "¿Mediante qué se relacionan la tabla de estudiantes y la tabla de matrículas según la clase?",
+      "options": ["Una clave foránea", "Un alias", "Un comodín", "Una función de agregado"],
+      "correct_index": 0,
+      "explanation": "El docente explica que las tablas se relacionan mediante una clave foránea: la matrícula guarda el id_estudiante de quien se inscribió.",
+      "segment_id": 1,
+      "evidence_quote": "Se relacionan mediante una clave foránea"
+    },
+    {
+      "question_id": "c2-q02",
+      "concept": "INNER JOIN",
+      "prompt": "En un INNER JOIN, ¿después de qué palabra se escribe la condición de unión?",
+      "options": ["ON", "WHERE", "HAVING", "AS"],
+      "correct_index": 0,
+      "explanation": "El docente indica que la condición se escribe después de la palabra ON, igualando la clave primaria con la clave foránea.",
+      "segment_id": 2,
+      "evidence_quote": "Escribimos la condición después de la palabra ON"
+    },
+    {
+      "question_id": "c2-q03",
+      "concept": "INNER JOIN",
+      "prompt": "En un INNER JOIN con la tabla de matrículas, ¿qué pasa con un estudiante que no tiene ninguna matrícula?",
+      "options": [
+        "No aparece en el resultado",
+        "Aparece con valores NULL",
+        "Aparece duplicado",
+        "Se produce un error"
+      ],
+      "correct_index": 0,
+      "explanation": "INNER JOIN solo devuelve filas con pareja en ambas tablas; el estudiante sin matrícula simplemente no aparece.",
+      "segment_id": 3,
+      "evidence_quote": "Si un estudiante no tiene ninguna matrícula, simplemente no aparece en el resultado"
+    },
+    {
+      "question_id": "c2-q04",
+      "concept": "LEFT JOIN",
+      "prompt": "Cuando un LEFT JOIN no encuentra coincidencia en la tabla derecha, ¿con qué se rellenan esas columnas?",
+      "options": [
+        "Con NULL",
+        "Con el valor cero",
+        "Con texto vacío",
+        "No se rellenan: la fila se descarta"
+      ],
+      "correct_index": 0,
+      "explanation": "El docente explica que, si no existe coincidencia en la tabla derecha, esas columnas se rellenan con NULL.",
+      "segment_id": 4,
+      "evidence_quote": "esas columnas se rellenan con NULL"
+    },
+    {
+      "question_id": "c2-q05",
+      "concept": "LEFT JOIN",
+      "prompt": "Para encontrar a los estudiantes que aún no tienen matrícula, ¿qué se agrega después del LEFT JOIN?",
+      "options": [
+        "Un WHERE con IS NULL sobre la clave de la tabla derecha",
+        "Un ORDER BY sobre la tabla izquierda",
+        "Un segundo INNER JOIN",
+        "Un COUNT DISTINCT"
+      ],
+      "correct_index": 0,
+      "explanation": "El docente indica que después del join se agrega WHERE con IS NULL sobre la clave de la tabla derecha.",
+      "segment_id": 5,
+      "evidence_quote": "agregamos WHERE con IS NULL sobre la clave de la tabla derecha"
+    },
+    {
+      "question_id": "c2-q06",
+      "concept": "COUNT",
+      "prompt": "¿Qué cuenta COUNT DISTINCT según el docente?",
+      "options": [
+        "Valores únicos",
+        "Todas las filas del grupo",
+        "Solo los valores NULL",
+        "El promedio del grupo"
+      ],
+      "correct_index": 0,
+      "explanation": "El docente aclara que COUNT DISTINCT cuenta valores únicos, a diferencia de COUNT con asterisco, que cuenta todas las filas del grupo.",
+      "segment_id": 7,
+      "evidence_quote": "COUNT DISTINCT cuenta valores únicos"
+    },
+    {
+      "question_id": "c2-q07",
+      "concept": "HAVING",
+      "prompt": "¿Qué cláusula filtra los grupos después de agrupar?",
+      "options": ["HAVING", "WHERE", "ON", "LIKE"],
+      "correct_index": 0,
+      "explanation": "El docente explica que WHERE filtra filas antes de agrupar y HAVING filtra grupos después de agrupar.",
+      "segment_id": 8,
+      "evidence_quote": "HAVING filtra grupos después de agrupar"
+    }
+  ]
+}
