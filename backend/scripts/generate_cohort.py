@@ -200,7 +200,7 @@ def add_recovery(ev: Events, st: Student, n: int, start: datetime, duration_s: f
 def behaviour(st: Student, day: int, rng) -> dict:
     """Parámetros de la sesión según el perfil y el momento del curso."""
     b = {"p_live": 0.94, "late": max(0.0, rng.normal(1, 3)), "early": max(0.0, rng.normal(0, 3)),
-         "cuts": int(rng.integers(0, 2)), "real_exit": False, "p_recover": 0.92, "recover_delay": rng.uniform(0.5, 4),
+         "cuts": int(rng.integers(0, 2)), "real_exit": False, "p_recover": 0.96, "recover_delay": rng.uniform(0.5, 4),
          "p_quiz": 0.6, "quiz_probs": (0.03, 0.17, 0.40, 0.40), "chat": 2.0, "voice": 0.8,
          "micro": [("contenido", "positivo"), ("ritmo", "neutro"), ("satisfaccion", "positivo")]}
     p = st.profile
@@ -213,7 +213,7 @@ def behaviour(st: Student, day: int, rng) -> dict:
                  p_recover=0.08, p_quiz=0.2, quiz_probs=(0.3, 0.4, 0.3, 0.0), chat=0.5, voice=0.1,
                  micro=[("tiempo", "negativo"), ("trabajo", "negativo")])
     elif p == "adaptado" and day >= st.shift_day:
-        b.update(p_live=0.12, p_recover=0.97, recover_delay=rng.uniform(0.4, 3.0), chat=0.5,
+        b.update(p_live=0.12, p_recover=0.98, recover_delay=rng.uniform(0.4, 3.0), chat=0.5,
                  micro=[("trabajo", "neutro"), ("tiempo", "positivo")])
     elif p == "desinteres" and day >= st.shift_day:
         f = min(1.0, (day - st.shift_day) / max(1, st.dropout_day - st.shift_day))

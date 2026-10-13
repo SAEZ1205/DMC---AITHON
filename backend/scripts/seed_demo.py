@@ -64,6 +64,7 @@ def main() -> None:
     ap.add_argument("--weeks", type=int, default=26)
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
+    sys.stdout.reconfigure(encoding="utf-8")
 
     ensure_env()
     reset_database()

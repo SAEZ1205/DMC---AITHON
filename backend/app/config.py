@@ -81,6 +81,8 @@ MODE_SHIFT_HISTORY_LIVE = 0.60
 QUIZ_TREND_WINDOW = 4
 CONSECUTIVE_WINDOW = 4  # buscar 2 no_cumplida seguidas entre las últimas N sesiones
 UNRECOVERED_DAYS = 4  # días sin avance en una sesión por recuperar para considerarla "sin recuperar"
+RECOVERY_BALANCE_WINDOW = 4  # "sin recuperar lo perdido": de las últimas N clases perdidas, recuperó menos de la mitad
+MIN_UNRECOVERED = 2  # ...y al menos 2 de ellas siguen sin recuperar
 STUDY_HOUR_WINDOW_DAYS = 28
 
 # --- Rescate ---
@@ -89,6 +91,7 @@ RECOVERY_MINUTES_HINT = 20
 
 # --- Micro-preguntas ---
 MICRO_EVERY_DAYS = 14
+MICRO_SIGNAL_DAYS = 21  # una respuesta deja de pesar en el diagnóstico pasado este plazo
 MICRO_QUESTIONS = [
     "¿Cómo te está acomodando el horario del curso estas semanas?",
     "¿Qué es lo que más te está costando del curso ahora?",
