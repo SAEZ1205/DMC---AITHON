@@ -48,7 +48,7 @@ def test_health_reports_live_without_leaking_the_key(db_path, retriever):
     assert body["llm"] == {
         "active_provider": "kimi", "configured_provider": "kimi", "mode": "LIVE", "selection_reason": "LIVE autorizado",
         "model": "kimi-k2.6", "live_authorized": True, "api_key_configured": True, "fallback_to_demo": True,
-        "live_calls_used": 0, "live_calls_limit": 100, "provider_status": None, "class_content_authorized": None,
+        "live_calls_used": 0, "live_calls_limit": 100, "provider_status": None, "class_content_authorized": None, "egress_guard": None,
     }
     assert FAKE_KEY not in resp.text
 

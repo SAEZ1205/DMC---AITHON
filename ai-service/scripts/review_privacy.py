@@ -68,6 +68,7 @@ def main() -> int:
         "## Qué se enviaría a un servicio externo si se autorizara (NVIDIA_ALLOW_CLASS_CONTENT=true)",
         "- Por pregunta: la pregunta del estudiante (enmascarada), hasta 3 segmentos recuperados (~40 s de clase cada uno) y el historial reciente.",
         "- NUNCA: el video, la transcripción completa, identificadores de estudiantes ni los nombres que el enmascarado detectó.",
+        "- Antes de salir, una barrera final vuelve a enmascarar y bloquea el envío si queda un nombre conocido (ver scripts/inspect_nvidia_payload.py).",
         "- Aun así, el texto de esos segmentos sale tal cual (con los errores del reconocimiento automático) y el servicio de prueba puede registrarlo.", "",
         "## Candidatos a nombre propio (decide cuáles añadir a demo-assets/mask-names.txt, uno por línea)",
         "| veces | palabra | contexto |", "|---|---|---|",

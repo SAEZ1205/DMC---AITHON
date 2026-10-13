@@ -32,7 +32,8 @@ SECRET_RE = re.compile(
 # ("se llama Docker", "se llama Google Sheets").
 _TRIGGERS = (
     r"soy|me llamo|mi nombre es|profesor|profesora|docente|ingeniero|ingeniera|ing|"
-    r"licenciado|licenciada|lic|señor|señora|sr|sra|don|doña|hola|gracias"
+    r"licenciado|licenciada|lic|señor|señora|sr|sra|don|doña|hola|gracias|"
+    r"dime(?:[ \t]+este)?|dinos|perdona|perdóname"          # interpelaciones de la clase: "Dime, este X"
 )
 # Palabra capitalizada con minúsculas (Maria, Torres): las siglas (API, DMC) no son nombres.
 _CAP = r"[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,}"
@@ -42,8 +43,13 @@ NAME_INTRO_RE = re.compile(rf"(?i:\b(?:{_TRIGGERS})\b),?[ \t]+(?P<name>{_CAP}(?:
 NOT_NAMES = frozenset(normalize_text(w) for w in (
     "Buenas Buenos Chicos Chicas Todos Todas Bienvenidos Bienvenidas Bueno Entonces Gracias Hola Muy Ahora Vamos "
     "Primero Segundo Tercero Sí Si No Ya Eso Esto Este Esta Aquí Aqui Dios Profesor Docente Clase Curso Ingeniero "
-    "Licenciado Ingeniería Industrial Sistemas Software Python Docker Windows Google Microsoft Linux Mac".split()
+    "Licenciado Ingeniería Industrial Sistemas Software Python Docker Windows Google Microsoft Linux Mac "
+    "Desktop Git GitHub Hub Shell Power Automate Sheets Sheet Drive Gmail Slack Excel Word WhatsApp Telegram Zoom Teams Cloud "
+    "Postman Node JavaScript JSON Apple Intel Ubuntu Make Zapier Workflow Webhook".split()
 ))
+# Caracteres invisibles que podrían partir un nombre para esquivar el enmascarado (p. ej. un espacio de ancho cero dentro del nombre).
+_INVISIBLE_RE = re.compile(r"[\u200b-\u200f\u2060\u00ad\ufeff]")
+_WORD_RE = re.compile(r"[A-Za-zÁÉÍÓÚÑáéíóúñÜü]+")
 PLACEHOLDERS = {"email": "[correo]", "phone": "[teléfono]", "document": "[documento]", "secret": "[secreto]", "name": "[nombre]"}
 
 
@@ -54,7 +60,11 @@ def mask_pii(text: str, extra_names: Iterable[str] = ()) -> str:
 
 class PrivacyFilter:
     def __init__(self, extra_names: Iterable[str] = ()):
-        self._names: Set[str] = {normalize_text(n) for n in extra_names if n and len(n.strip()) >= 3}
+        self._names: Set[str] = set()
+        for entry in extra_names:                       # "Ana Torres" => dos nombres; cada palabra corta (<3) se ignora
+            for word in _WORD_RE.findall(_INVISIBLE_RE.sub("", entry or "")):
+                if len(word) >= 3:
+                    self._names.add(normalize_text(word))
         self.counts: Counter = Counter()
 
     # ----------------------------------------------------------- aprendizaje
@@ -92,6 +102,7 @@ class PrivacyFilter:
             text, n = regex.subn(value, text)
             counts[label] += n
 
+        text = _INVISIBLE_RE.sub("", text)
         sub(EMAIL_RE, "email", PLACEHOLDERS["email"])
         sub(SECRET_RE, "secret", PLACEHOLDERS["secret"])
         sub(PHONE_RE, "phone", PLACEHOLDERS["phone"])
@@ -107,6 +118,21 @@ class PrivacyFilter:
             text = re.sub(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{3,}", hide_known, text)
         self.counts.update(counts)
         return text, dict(counts)
+
+    @property
+    def known_name_count(self) -> int:
+        """Cuántos nombres conoce el filtro (el número, nunca los nombres)."""
+        return len(self._names)
+
+    def known_name_hits(self, text: str) -> int:
+        """
+        Cuántas palabras de `text` coinciden con un nombre conocido. Comprobación independiente de `mask` (otra ruta de
+        código) para verificar el texto YA enmascarado antes de enviarlo: debe dar 0. Devuelve un número, no los nombres.
+        """
+        if not self._names:
+            return 0
+        clean = normalize_text(_INVISIBLE_RE.sub("", text))
+        return sum(1 for w in re.findall(r"[a-z]+", clean) if w in self._names)
 
     @staticmethod
     def _intro(m: "re.Match[str]", counts: Counter) -> str:

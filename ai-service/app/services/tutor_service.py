@@ -115,9 +115,7 @@ class TutorService:
         lesson_id = req.lesson_id if is_new else session.lesson_id
 
         # Privacidad: correos, teléfonos, documentos y secretos se enmascaran ANTES de procesar, guardar o enviar a un modelo.
-        message = mask_pii(req.message)
-        if self.privacy is not None:
-            message = self.privacy.mask(message)[0]
+        message = self._mask(req.message)
         analysis = analyze_message(message)
         cited = set() if is_new else self.store.get_cited_segments(session_id)
 
@@ -141,7 +139,7 @@ class TutorService:
             lesson_title=lesson.title if lesson else None,
             topic_label=plan.label,
             evidence=plan.evidence,
-            history=[ChatTurn(r.role, r.content[:HISTORY_MESSAGE_MAX_CHARS]) for r in history_records],
+            history=[ChatTurn(r.role, self._mask(r.content)[:HISTORY_MESSAGE_MAX_CHARS]) for r in history_records],   # enmascarar ANTES de truncar
             turn_number=turn_number,
             follow_up_mode=plan.mode,
             user_intent=analysis.user_intent,
@@ -199,6 +197,11 @@ class TutorService:
             guardian=None if verdict is None else GuardianInfo(
                 label=verdict.label.value, method=verdict.method, is_llm=verdict.is_llm, reasons=list(verdict.reasons)),
         )
+
+    def _mask(self, text: str) -> str:
+        """Patrones (correo, teléfono...) + los nombres que la clase real enseñó al filtro. Idempotente: es seguro repetirlo."""
+        text = mask_pii(text)
+        return self.privacy.mask(text)[0] if self.privacy is not None else text
 
     def _record_telemetry(self, req, message, session_id, lesson_id, analysis, plan, reply, used, idem_scope, verdict=None) -> None:
         """Eventos del chat que son responsabilidad de este módulo. Nunca incluyen el texto del mensaje."""

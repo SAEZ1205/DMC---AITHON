@@ -89,8 +89,12 @@ Por defecto la demo corre en **DEMO** (sin red). La integración con NVIDIA est�
    ```
    Reinicia el backend y comprueba `/health`: `llm.active_provider` = `nvidia-kimi`, `mode` = `LIVE`.
 4. **La clase real NO se envía a NVIDIA** mientras `NVIDIA_ALLOW_CLASS_CONTENT=false` (por defecto): su chat responde en modo DEMO con un aviso visible.
-   Para cambiarlo hace falta tu autorización expresa: NVIDIA puede registrar lo que reciba. Antes, ejecuta `scripts\review_privacy.py` y revisa
-   `ai-service\data\real\revision_privacidad.md` (ignorado por Git).
+   Para cambiarlo hace falta tu autorización expresa: NVIDIA puede registrar lo que reciba. Antes, haz esta revisión local (sin red):
+   1. `scripts\review_privacy.py` y lee `ai-service\data\real\revision_privacidad.md` (ignorado por Git). Si ves nombres de personas sin ocultar,
+      añádelos (uno por línea) a `demo-assets\mask-names.txt` y reinicia el backend.
+   2. `scripts\inspect_nvidia_payload.py` y lee `ai-service\data\real\payload_nvidia_preview.md`: son las solicitudes exactas que saldrían
+      (sin clave; nada se envía). Debe decir **0 coincidencias residuales**.
+   3. Recuerda que es una revisión heurística: no garantiza anonimización completa (ver "Límites" en ese informe).
 5. **Para volver a DEMO:** borra o comenta `LLM_PROVIDER` y `LLM_LIVE_AUTHORIZED` en `.env` y reinicia.
 
 Límites y costos: el acceso de prueba de NVIDIA es gratuito para prototipos pero **con límites de uso** (no publicados en la documentación consultada); un `429`

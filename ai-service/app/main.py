@@ -88,6 +88,7 @@ def create_app(
     if isinstance(live_provider, NvidiaKimiProvider) and real is not None:
         # El servicio de prueba de NVIDIA puede registrar entradas y salidas: la clase REAL no sale sin autorización expresa.
         live_provider.restrict_lesson(real.lesson.course_id, real.lesson.lesson_id)
+        live_provider.attach_privacy(real.privacy)      # barrera final: re-enmascara y verifica nombres antes de cada envío
     guardian = LLMGuardian(live_provider, kb, heuristic) if live_provider else heuristic
     service = TutorService(kb, store, selection.provider, fallback_provider=fallback, telemetry=telemetry, guardian=guardian,
                            privacy=real.privacy if real is not None else None)

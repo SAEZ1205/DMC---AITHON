@@ -4,6 +4,29 @@ Carpeta reservada para el módulo de inteligencia artificial y sus APIs.
 
 La idea es mantener esta lógica separada del frontend para que ambos equipos puedan trabajar sin pisarse archivos. Cuando el servicio esté listo, el frontend se conectará mediante endpoints definidos por el equipo de IA/backend.
 
+## Etapa 6.1: privacidad antes de usar la clase real con NVIDIA
+
+`NVIDIA_ALLOW_CLASS_CONTENT` sigue en `false`: esta etapa **prepara** la activación, no la hace.
+
+- **Barrera final** (`NvidiaKimiProvider.attach_privacy`, cableada en `main.py`): justo antes de cada envío, todo mensaje que no sea el prompt de
+  sistema (pregunta, historial y fragmentos recuperados) se vuelve a enmascarar y se verifica con una comprobación independiente
+  (`PrivacyFilter.known_name_hits`). Si aun así quedara un nombre conocido, la petición **no se envía** (`llm_unmasked_content`) y la respuesta
+  sale en DEMO con aviso visible. Cubre `generate`, `classify_relevance` y `summarize_segments`: las tres pasan por `_post`.
+  `/health` → `llm.egress_guard` informa cuántos nombres conoce el filtro y cuántos envíos se bloquearon (nunca los nombres).
+- **Historial**: el servicio lo enmascara **antes** de truncarlo a 500 caracteres (un corte a mitad de un nombre dejaría un trozo irreconocible).
+- **`app/privacy.py`**: nuevos disparadores de interpelación (`dime (este) X`, `dinos X`, `perdona/perdóname X`), las entradas de varias palabras de
+  `mask-names.txt` se registran palabra por palabra, se ignoran caracteres invisibles que partirían un nombre, y más productos quedan fuera de
+  "nombre" (Docker Desktop, Git, Slack...).
+- **`demo-assets/mask-names.txt`** (privado, ignorado por Git): un nombre por línea; incluye variantes que el reconocimiento automático deformó.
+  Tras editarlo, reinicia el backend.
+- **Procedimiento antes de autorizar** (todo local, sin red, sin leer `.env`):
+  1. `.\.venv\Scripts\python.exe -X utf8 scripts\review_privacy.py` → `data/real/revision_privacidad.md` (candidatos a nombre, URLs, números).
+  2. `.\.venv\Scripts\python.exe -X utf8 scripts\inspect_nvidia_payload.py` → `data/real/payload_nvidia_preview.md`: las solicitudes exactas que
+     SALDRÍAN (sanitizadas: sin clave, sin prompt de sistema, sin nombres), capturadas con un transporte simulado y sockets bloqueados.
+     Usa una clave de mentira y concede la autorización de contenido solo dentro de ese proceso.
+- **Límite**: es heurístico. Demuestra que los nombres *conocidos* no salen; no puede demostrar que no exista un nombre que ni la lista ni las
+  reglas reconocen, ni cubre datos personales sin forma de nombre (empleador, ciudad, anécdotas).
+
 ## Etapa 6: Kimi K3 mediante NVIDIA Build
 
 Proveedor `NvidiaKimiProvider` (`app/llm/nvidia_provider.py`), **independiente** de `KimiProvider` (Moonshot) y de `DemoProvider`, que no se modificaron.

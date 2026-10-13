@@ -67,6 +67,12 @@ class LLMContentNotAuthorized(LLMError):
     public_message = "El contenido de la clase no está autorizado para enviarse a este proveedor externo."
 
 
+class LLMUnmaskedContent(LLMContentNotAuthorized):
+    """La barrera final detectó un nombre conocido que el enmascarado no pudo ocultar: la petición NO se envía."""
+    code = "llm_unmasked_content"
+    public_message = "Se bloqueó el envío a NVIDIA porque quedaba un nombre de persona sin enmascarar; la respuesta se generó en modo DEMO."
+
+
 class LLMMalformedResponse(LLMError):
     code = "llm_malformed_response"
     http_status = 502

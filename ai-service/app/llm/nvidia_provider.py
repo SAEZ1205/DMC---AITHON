@@ -36,11 +36,12 @@ from app.llm.base import ResponseKind, TutorContext, TutorReply
 from app.llm.demo_provider import DemoProvider
 from app.llm.errors import (
     LLMAuthError, LLMContentNotAuthorized, LLMError, LLMMalformedResponse, LLMRateLimited, LLMRequestRejected,
-    LLMTimeout, LLMUnavailable,
+    LLMTimeout, LLMUnavailable, LLMUnmaskedContent,
 )
 from app.llm.kimi_provider import KimiProvider, LiveCallBudget, SummaryPiece
 from app.llm.verification import parse_model_json
 from app.models.transcript import SegmentMatch
+from app.privacy import PrivacyFilter
 
 logger = logging.getLogger(__name__)
 
@@ -117,8 +118,45 @@ class NvidiaKimiProvider(KimiProvider):
         self._pause_until = 0.0
         self._pause_error: Optional[LLMError] = None
         self._private: Set[Tuple[str, str]] = set(private_lessons)
+        self._privacy: Optional[PrivacyFilter] = None
+        self.egress_stats: Dict[str, int] = {"requests_checked": 0, "messages_remasked": 0, "blocked": 0}
 
     # =================================================== privacidad del contenido
+    def attach_privacy(self, privacy: Optional[PrivacyFilter]) -> None:
+        """
+        Instala la BARRERA FINAL de privacidad: todo mensaje que no sea el prompt de sistema se vuelve a enmascarar justo
+        antes de salir (historial, fragmentos recuperados, pregunta) y, si aun así queda un nombre conocido, la petición
+        se bloquea. Es defensa en profundidad: el texto ya llega enmascarado desde el ingreso y desde el servicio del tutor.
+        """
+        self._privacy = privacy
+
+    def egress_guard_status(self) -> Dict[str, Any]:
+        """Estado de la barrera para /health: sin nombres, solo cuántos conoce."""
+        return {"active": self._privacy is not None,
+                "known_names": self._privacy.known_name_count if self._privacy is not None else 0, **self.egress_stats}
+
+    def _guard_outgoing(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        if self._privacy is None or not isinstance(payload.get("messages"), list):
+            return payload
+        self.egress_stats["requests_checked"] += 1
+        guarded, remasked, hits = [], 0, 0
+        for message in payload["messages"]:
+            content = message.get("content") if isinstance(message, dict) else None
+            if not isinstance(content, str):
+                guarded.append(message)
+                continue
+            if message.get("role") != "system":     # el prompt de sistema es propio y contiene el token canario (parece un secreto)
+                masked, _ = self._privacy.mask(content)
+                remasked += masked != content
+                content = masked
+            hits += self._privacy.known_name_hits(content)
+            guarded.append({**message, "content": content})
+        self.egress_stats["messages_remasked"] += remasked
+        if hits:
+            self.egress_stats["blocked"] += 1
+            logger.warning("Envío a NVIDIA bloqueado: quedaban %d coincidencias con nombres conocidos tras enmascarar", hits)
+            raise LLMUnmaskedContent("nombres conocidos sin enmascarar en la petición")
+        return {**payload, "messages": guarded}
     def restrict_lesson(self, course_id: str, lesson_id: str) -> None:
         """Marca una clase como PRIVADA (la clase real de DMC): su contenido no sale hacia NVIDIA sin autorización."""
         self._private.add((course_id, lesson_id))
@@ -208,7 +246,7 @@ class NvidiaKimiProvider(KimiProvider):
 
     def _post(self, payload: Dict[str, Any], enforce_floor: bool = True) -> Dict[str, Any]:
         self._raise_if_paused()
-        body = dict(payload)
+        body = dict(self._guard_outgoing(payload))      # última barrera: nada sale sin pasar por el filtro de nombres
         tokens = body.pop("max_completion_tokens", None)
         if tokens is not None:
             if enforce_floor:
