@@ -1,0 +1,13 @@
+.git
+**/__pycache__
+**/.pytest_cache
+backend/.venv
+backend/.env
+backend/tests
+backend/data/dmc.db*
+backend/data/cohort
+backend/data/processed
+backend/data/zoom
+backend/data/sample/**/*.mp4
+ai-service
+docs

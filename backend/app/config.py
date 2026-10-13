@@ -20,7 +20,13 @@ SAMPLE_SESSION_DIR = SAMPLE_DIR / "session_demo"
 PROCESSED_DIR = DATA_DIR / "processed"
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
-DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{(DATA_DIR / 'dmc.db').as_posix()}")
+# En Vercel el bundle es de solo lectura: la base generada en el build se copia a /tmp al arrancar
+# (los cambios duran mientras viva la instancia).
+ON_VERCEL = bool(os.getenv("VERCEL"))
+DB_SNAPSHOT = DATA_DIR / "dmc.db" if ON_VERCEL else None
+DATABASE_URL = os.getenv("DATABASE_URL") or (
+    "sqlite:////tmp/dmc.db" if ON_VERCEL else f"sqlite:///{(DATA_DIR / 'dmc.db').as_posix()}"
+)
 
 # --- LLM (proveedor compatible con OpenAI; Kimi por defecto) ---
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.moonshot.ai/v1")
@@ -104,5 +110,5 @@ TUTOR_ROLES = {"tutor", "asistente_academico", "docente", "coordinador"}
 CONSENT_VERSION = "2026-10"
 
 # --- Tareas periódicas ---
-SCHEDULER_ENABLED = os.getenv("DISABLE_SCHEDULER", "").strip() not in {"1", "true", "yes"}
+SCHEDULER_ENABLED = os.getenv("DISABLE_SCHEDULER", "").strip() not in {"1", "true", "yes"} and not ON_VERCEL
 RECOMPUTE_EVERY_MINUTES = 60
