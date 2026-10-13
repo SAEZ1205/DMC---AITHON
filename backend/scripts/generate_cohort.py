@@ -201,6 +201,7 @@ def behaviour(st: Student, day: int, rng) -> dict:
     """Parámetros de la sesión según el perfil y el momento del curso."""
     b = {"p_live": 0.94, "late": max(0.0, rng.normal(1, 3)), "early": max(0.0, rng.normal(0, 3)),
          "cuts": int(rng.integers(0, 2)), "real_exit": False, "p_recover": 0.96, "recover_delay": rng.uniform(0.5, 4),
+         "p_late_recover": 0.0,
          "p_quiz": 0.6, "quiz_probs": (0.03, 0.17, 0.40, 0.40), "chat": 2.0, "voice": 0.8,
          "micro": [("contenido", "positivo"), ("ritmo", "neutro"), ("satisfaccion", "positivo")]}
     p = st.profile
@@ -210,7 +211,7 @@ def behaviour(st: Student, day: int, rng) -> dict:
         b.update(p_live=0.92, cuts=int(rng.integers(4, 10)), real_exit=rng.random() < 0.15)
     elif p == "cambio_horario" and day >= st.shift_day:
         b.update(p_live=0.75, late=max(25.0, rng.normal(45, 10)), early=max(20.0, rng.normal(40, 12)),
-                 p_recover=0.08, p_quiz=0.2, quiz_probs=(0.3, 0.4, 0.3, 0.0), chat=0.5, voice=0.1,
+                 p_recover=0.08, p_late_recover=0.25, p_quiz=0.2, quiz_probs=(0.3, 0.4, 0.3, 0.0), chat=0.5, voice=0.1,
                  micro=[("tiempo", "negativo"), ("trabajo", "negativo")])
     elif p == "adaptado" and day >= st.shift_day:
         b.update(p_live=0.12, p_recover=0.98, recover_delay=rng.uniform(0.4, 3.0), chat=0.5,
@@ -246,6 +247,7 @@ def main() -> None:
 
 def generate(n_students: int, weeks: int, seed: int, start: date, out: Path) -> None:
     rng = np.random.default_rng(seed)
+    late_rng = np.random.default_rng(seed + 1)  # aparte, para no alterar el resto de la cohorte
     fake = Faker("es_ES")
     Faker.seed(seed)
     if out.exists():
@@ -300,6 +302,8 @@ def generate(n_students: int, weeks: int, seed: int, start: date, out: Path) -> 
                 if rng.random() < b["p_quiz"]:
                     at = s_start + timedelta(days=float(rng.uniform(1, 5)))
                     add_quiz(ev, st, n, score_choice(rng, b["quiz_probs"]), at, rng, tuple(rng.choice(b["micro"])))
+            elif b["p_late_recover"] and late_rng.random() < b["p_late_recover"]:
+                add_recovery(ev, st, n, s_start, duration_s, late_rng, late_rng.uniform(8, 10))
 
         with (folder / "participants.csv").open("w", newline="", encoding="utf-8") as fh:
             w = csv.writer(fh)
