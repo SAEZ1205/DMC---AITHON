@@ -198,6 +198,7 @@
 .sol-modal ul { padding-left: 20px; }
 .sol-modal label { display: block; font-size: 13px; color: #455a64; margin: 12px 0 6px; font-weight: 500; }
 .sol-modal textarea, .sol-modal select, .sol-modal input[type=text], .sol-modal input[type=datetime-local] { width: 100%; border: 1px solid #ced4da; border-radius: 8px; padding: 7px 10px; font: inherit; font-size: 14px; }
+.sol-modal label.sol-switch { display: inline-flex; font-weight: 400; }
 .sol-modal-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 .sol-options { display: flex; flex-wrap: wrap; gap: 8px; }
 .sol-options input { position: absolute; opacity: 0; width: 1px; height: 1px; }
@@ -280,7 +281,8 @@
 .sol-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
 .sol-table { width: 100%; border-collapse: collapse; font-size: 13px; background: #fff; }
 .sol-table th { text-align: left; font-weight: 600; color: #455a64; background: #f4f7f8; padding: 10px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
-.sol-table td { padding: 10px 12px; border-bottom: 1px solid #eef1f3; vertical-align: top; }
+.sol-table td { padding: 10px 12px; border-bottom: 1px solid #eef1f3; vertical-align: top; white-space: nowrap; }
+.sol-table td.sol-wrap { white-space: normal; min-width: 300px; }
 .sol-table tbody tr { cursor: pointer; }
 .sol-table tbody tr:hover { background: #f6f9fa; }
 .sol-table tbody tr:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
@@ -328,6 +330,10 @@
 .sol-feature.flag strong { color: var(--sol-amber); }
 .sol-sessions-table td, .sol-sessions-table th { padding: 6px 8px; }
 .sol-sessions-table tbody tr { cursor: default; }
+.sol-keys-table { margin-top: 10px; max-height: 640px; overflow-y: auto; }
+.sol-keys-table td { white-space: normal; }
+.sol-keys-table td:last-child { white-space: nowrap; }
+.sol-table tbody tr.selected { background: var(--sol-blue-bg); }
 .sol-keys-list { list-style: none; margin: 0; padding: 0; }
 .sol-keys-list li { display: grid; grid-template-columns: 70px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 6px; border-bottom: 1px solid #eef1f3; }
 .sol-keys-list input[type=text] { width: 100%; border: 1px solid transparent; border-radius: 6px; padding: 4px 6px; font: inherit; font-size: 14px; }
