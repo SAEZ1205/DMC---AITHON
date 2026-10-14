@@ -73,7 +73,7 @@ def seed() -> None:
     from app.db import engine, init_db
     from app.models import (ChatMessage, ClassSession, Course, Enrollment, Heartbeat, MicroAnswer, QuizAttempt,
                             User, WatchRange)
-    from app.services.processing import process_session
+    from app.services import content
     from app.services.real_session import apply_to_session, has_real_content
     from app.services.recompute import recompute_course
     from app.services.zoom_ingest import ingest_session
@@ -134,10 +134,18 @@ def seed() -> None:
                 real_sessions.add(n)
                 print(f"Sesión {n}: contenido real tomado de {real} («{s.title}»)")
 
+        # la cohorte se simuló con clases de 3 h; en una sesión real más larga, sus rangos vistos se escalan
+        scale = {}
+        for row in sessions_rows:
+            n = int(row["number"])
+            simulated = (datetime.fromisoformat(row["ends_at"]) - datetime.fromisoformat(row["starts_at"])).total_seconds()
+            scale[n] = (sessions[n].ends_at - sessions[n].starts_at).total_seconds() / simulated
         events = json.loads((cohort / "platform_events.json").read_text(encoding="utf-8"))
         for e in events["watch"]:
+            k = scale[e["session"]]
             db.add(WatchRange(user_id=by_email[e["email"]].id, session_id=sessions[e["session"]].id,
-                              start_s=e["start_s"], end_s=e["end_s"], at=datetime.fromisoformat(e["at"])))
+                              start_s=round(e["start_s"] * k, 1), end_s=round(e["end_s"] * k, 1),
+                              at=datetime.fromisoformat(e["at"])))
         for e in events["quiz"]:
             db.add(QuizAttempt(user_id=by_email[e["email"]].id, session_id=sessions[e["session"]].id,
                                score=e["score"], at=datetime.fromisoformat(e["at"])))
@@ -154,7 +162,7 @@ def seed() -> None:
         db.commit()
 
         for s in sessions.values():
-            process_session(db, s)
+            content.rebuild(db, s)
         now = config.now()
         for days in range(HISTORY_DAYS, 0, -1):
             day = datetime.combine((now - timedelta(days=days)).date(), time(23, 59))

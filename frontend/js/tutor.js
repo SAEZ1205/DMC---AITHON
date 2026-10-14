@@ -235,11 +235,24 @@ function keyRatio() {
 function renderKeySummary() {
   const k = currentKeys;
   const ratio = keyRatio();
-  const warn = ratio < 0.3 || ratio > 0.5;
+  const tip = ratio > 0.4
+    ? 'Los tramos clave superan el 40 % de la clase: recuperar deja de ser más corto que ver la sesión entera.'
+    : ratio < 0.3 ? 'Se recomienda que los tramos clave sumen entre 30 % y 40 % de la clase.' : '';
   qs('#keySummary').innerHTML = `
     <div class="sol-keys-summary"><span>Tramos clave: <strong>${pct(ratio)}</strong> de la clase (${Math.round(ratio * k.session.duration_s / 60)} min)</span>
-      ${k.chapters.some(c => c.validated) ? chip('activo', 'Validado') : chip('en_riesgo', 'Propuesto por IA')}</div>
-    ${warn ? `<p class="sol-warning"><i class="fa-solid fa-triangle-exclamation"></i> Se recomienda que los tramos clave sumen entre 30 % y 50 % de la clase.</p>` : ''}`;
+      ${k.chapters.some(c => c.validated) ? chip('activo', 'Validado') : chip('en_riesgo', 'Propuesta automática')}</div>
+    ${tip ? `<p class="sol-warning"><i class="fa-solid fa-triangle-exclamation"></i> ${tip}</p>` : ''}`;
+}
+
+function parseTime(text) {
+  const parts = String(text).trim().split(':').map(Number);
+  if (!parts.length || parts.some(n => Number.isNaN(n) || n < 0)) return null;
+  return parts.reduce((acc, n) => acc * 60 + n, 0);
+}
+
+function chapterSource(c) {
+  if (c.slide_from) return c.slide_from === c.slide_to ? `Diapositiva ${c.slide_from}` : `Diapositivas ${c.slide_from}–${c.slide_to}`;
+  return c.source === 'texttiling' ? 'Por cambio de tema en la transcripción' : '';
 }
 
 function renderKeyEditor() {
@@ -248,9 +261,16 @@ function renderKeyEditor() {
     <h2 class="sol-card-title">Sesión ${k.session.number} – ${esc(k.session.title)}</h2>
     <div id="keySummary" aria-live="polite"></div>
     <ul class="sol-keys-list">${k.chapters.map((c, i) => `<li>
-      <span class="sol-chapter-time">${fmtTime(c.start)}</span>
-      <span><input type="text" value="${esc(c.title)}" data-title="${i}" aria-label="Título del capítulo"><p>${esc(c.summary)}</p></span>
-      <label class="sol-switch"><input type="checkbox" data-key="${i}" ${c.is_key ? 'checked' : ''}><span></span> Clave</label>
+      <span class="sol-chapter-range">
+        <input type="text" value="${fmtTime(c.start)}" data-start="${i}" aria-label="Inicio del capítulo" inputmode="numeric">
+        <input type="text" value="${fmtTime(c.end)}" data-end="${i}" aria-label="Fin del capítulo" inputmode="numeric">
+      </span>
+      <span><input type="text" value="${esc(c.title)}" data-title="${i}" aria-label="Título del capítulo">
+        <p>${esc([chapterSource(c), c.summary].filter(Boolean).join(' · '))}</p></span>
+      <span class="sol-chapter-flags">
+        <label class="sol-switch"><input type="checkbox" data-key="${i}" ${c.is_key ? 'checked' : ''} ${c.logistics ? 'disabled' : ''}><span></span> Clave</label>
+        <label class="sol-switch"><input type="checkbox" data-logistics="${i}" ${c.logistics ? 'checked' : ''}><span></span> Logística</label>
+      </span>
     </li>`).join('')}</ul>
     <div class="sol-modal-actions"><button type="button" class="sol-btn" id="saveKeys"><i class="fa-solid fa-check"></i> Validar tramos clave</button></div>`;
   renderKeySummary();
@@ -267,7 +287,7 @@ async function saveKeys() {
   try {
     currentKeys = await api(`/tutor/sessions/${currentKeys.session.id}/chapters`, {
       method: 'PATCH',
-      body: { chapters: currentKeys.chapters.map(c => ({ id: c.id, is_key: c.is_key, title: c.title })), validate_all: true },
+      body: { chapters: currentKeys.chapters.map(c => ({ id: c.id, is_key: c.is_key, title: c.title, start: c.start, end: c.end, logistics: c.logistics })), validate_all: true },
     });
     renderKeyEditor();
     await loadKeySessions();
@@ -309,6 +329,20 @@ document.addEventListener('keydown', e => {
 document.addEventListener('change', e => {
   if (!currentKeys) return;
   if (e.target.matches('[data-key]')) { currentKeys.chapters[Number(e.target.dataset.key)].is_key = e.target.checked; renderKeySummary(); }
+  if (e.target.matches('[data-logistics]')) {
+    const c = currentKeys.chapters[Number(e.target.dataset.logistics)];
+    c.logistics = e.target.checked;
+    if (c.logistics) c.is_key = false;
+    renderKeyEditor();
+  }
+  const bound = e.target.matches('[data-start]') ? 'start' : e.target.matches('[data-end]') ? 'end' : null;
+  if (bound) {
+    const c = currentKeys.chapters[Number(e.target.dataset[bound])];
+    const value = parseTime(e.target.value);
+    if (value === null) { e.target.value = fmtTime(c[bound]); toast('Escribe el minuto como mm:ss o h:mm:ss.', 'error'); return; }
+    c[bound] = value;
+    renderKeySummary();
+  }
 });
 document.addEventListener('input', e => {
   if (e.target.matches('#search')) renderRows();

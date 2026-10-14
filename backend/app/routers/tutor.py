@@ -246,12 +246,16 @@ def _chapters_payload(db: Session, s: ClassSession) -> dict:
     duration = (s.ends_at - s.starts_at).total_seconds()
     ratio = sum(c.end - c.start for c in chs if c.is_key) / duration if duration else 0
     warning = None
-    if ratio < 0.30 or ratio > 0.50:
-        warning = f"Los tramos clave suman {round(ratio * 100)} % de la clase; se recomienda entre 30 % y 50 %."
+    if ratio > 0.40:
+        warning = (f"Los tramos clave suman {round(ratio * 100)} % de la clase. Con más del 40 %, recuperar una "
+                   "sesión deja de ser más corto que verla entera; conviene desmarcar algunos.")
+    elif ratio < 0.30:
+        warning = f"Los tramos clave suman {round(ratio * 100)} % de la clase; se recomienda entre 30 % y 40 %."
     return {"session": {"id": s.id, "number": s.number, "title": s.title, "duration_s": duration},
             "key_ratio": round(ratio, 3), "warning": warning,
             "chapters": [{"id": c.id, "start": c.start, "end": c.end, "title": c.title, "summary": c.summary,
-                          "is_key": c.is_key, "validated": c.validated} for c in chs]}
+                          "is_key": c.is_key, "validated": c.validated, "logistics": c.logistics,
+                          "slide_from": c.slide_from, "slide_to": c.slide_to, "source": c.source} for c in chs]}
 
 
 @router.get("/sessions/{session_id}/chapters")
@@ -263,6 +267,9 @@ class ChapterPatch(BaseModel):
     id: int
     is_key: bool
     title: str | None = Field(default=None, max_length=200)
+    start: float | None = Field(default=None, ge=0)
+    end: float | None = Field(default=None, gt=0)
+    logistics: bool | None = None
 
 
 class ChaptersPatch(BaseModel):
@@ -279,8 +286,23 @@ def patch_chapters(session_id: int, body: ChaptersPatch, db: Session = Depends(g
         if ch is None:
             raise HTTPException(400, f"El capítulo {patch.id} no pertenece a la sesión")
         ch.is_key = patch.is_key
-        if patch.title:
+        if patch.title and patch.title.strip():
             ch.title = patch.title.strip()
+        if patch.start is not None:
+            ch.start = patch.start
+        if patch.end is not None:
+            ch.end = patch.end
+        if patch.logistics is not None:
+            ch.logistics = patch.logistics
+        if ch.logistics and ch.is_key:
+            raise HTTPException(400, f"«{ch.title}» es de logística: no puede ser tramo clave")
+    duration = (s.ends_at - s.starts_at).total_seconds()
+    ordered = sorted(rows.values(), key=lambda c: c.start)
+    for i, ch in enumerate(ordered):
+        if ch.end - ch.start < 30 or ch.end > duration + 1:
+            raise HTTPException(400, f"«{ch.title}»: el fin debe ser posterior al inicio y estar dentro de la clase")
+        if i and ordered[i - 1].end > ch.start + 0.5:
+            raise HTTPException(400, f"«{ordered[i - 1].title}» y «{ch.title}» se superponen")
     if body.validate_all:
         for ch in rows.values():
             ch.validated = True

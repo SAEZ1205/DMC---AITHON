@@ -12,6 +12,15 @@ Referencia: [`SOLUCION_DMC_CURSOR.md`](SOLUCION_DMC_CURSOR.md) (v1) y [`SOLUCION
 - **Video:** no se copia (632 MB): `metadata.json` guarda la ruta local y el backend lo sirve en `/media/23.mp4` con rangos HTTP. Sin Vercel Blob, la demo publicada no tiene video y usa el reproductor de transcripción con el texto real.
 - **Transcripción:** el `.txt` real trae una línea de tiempo (`m:ss` o `h:mm:ss`) seguida del texto, sin nombre del hablante, en el 100 % de los bloques; por eso no hizo falta alinear con Whisper. `scripts/align_transcript.py` queda para sesiones futuras sin marcas de tiempo.
 - **Diapositivas de logística:** docente, perfil, acuerdos, agenda y «gracias» nunca son tramo clave.
+- **Historial de la cohorte en la sesión 23:** la cohorte sintética se generó con clases de 3 h. Al cargar la sesión real (3 h 30 min), el seed escala sus rangos vistos en la misma proporción, para que «vio la grabación completa» siga significando lo mismo. Las asistencias en vivo (Zoom) no cambian.
+
+## Capítulos y tramos clave sin LLM
+
+- `app/services/chaptering.py`: ventanas de 60 s; BM25 de cada ventana contra cada diapositiva, suavizado en 3 ventanas y **alineación monótona por programación dinámica** (la mejor secuencia de diapositivas que avanza en orden, con una penalización por cambio). Se eligió en lugar de «diapositiva más parecida por ventana» porque la transcripción automática es ruidosa («M8» por n8n) y una coincidencia aislada con una diapositiva lejana rompía el orden. Un repaso (volver a una diapositiva anterior) se acepta si dura 2 min o más.
+- Al unir capítulos para llegar a 12 como máximo, se unen primero pares vecinos del mismo tipo (logística con logística, contenido con contenido), así la bienvenida no queda mezclada con contenido.
+- Sin marca del docente en `key_slides.json`, los tramos clave son los capítulos con mayor densidad de términos propios del material (los que aparecen en pocas diapositivas), hasta sumar 30–45 % de la clase. En la sesión real: 12 capítulos, 37 %. El tablero avisa si superan el 40 %.
+- **Sesiones de muestra:** conservan los capítulos de la referencia `data/sample/session_demo/processed.json` (revisados por el equipo, fuente «muestra»), porque el historial simulado de la cohorte se generó contra esos tramos clave; cambiarlos alteraría los cumplimientos ya calculados. El algoritmo se prueba también sobre la transcripción de muestra (`tests/test_chaptering.py`).
+- `scripts/chapters_report.py 23` imprime la tabla de capítulos para revisar los límites contra el video.
 
 ## Reloj simulado
 

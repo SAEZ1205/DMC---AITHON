@@ -335,7 +335,11 @@
 .sol-keys-table td:last-child { white-space: nowrap; }
 .sol-table tbody tr.selected { background: var(--sol-blue-bg); }
 .sol-keys-list { list-style: none; margin: 0; padding: 0; }
-.sol-keys-list li { display: grid; grid-template-columns: 70px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 6px; border-bottom: 1px solid #eef1f3; }
+.sol-keys-list li { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 6px; border-bottom: 1px solid #eef1f3; }
+.sol-chapter-range { display: flex; flex-direction: column; gap: 2px; }
+.sol-chapter-range input[type=text] { font-variant-numeric: tabular-nums; color: var(--blue); font-size: 13px; }
+.sol-chapter-flags { display: flex; flex-direction: column; gap: 6px; }
+.sol-switch input:disabled + span { opacity: .4; }
 .sol-keys-list input[type=text] { width: 100%; border: 1px solid transparent; border-radius: 6px; padding: 4px 6px; font: inherit; font-size: 14px; }
 .sol-keys-list input[type=text]:hover, .sol-keys-list input[type=text]:focus { border-color: #ced4da; }
 .sol-keys-list p { margin: 2px 6px 0; font-size: 12px; color: var(--muted); }
