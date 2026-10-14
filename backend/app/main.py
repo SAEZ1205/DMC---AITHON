@@ -4,12 +4,16 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
-from fastapi.responses import RedirectResponse
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from sqlmodel import Session
 
 from . import config
-from .db import init_db
+from .db import engine, init_db
+from .models import ClassSession
 from .routers import admin, auth, sessions, student, tutor
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -39,6 +43,16 @@ for router in (auth.router, student.router, sessions.router, tutor.router, admin
 @app.get("/", include_in_schema=False)
 def root():
     return RedirectResponse("/index.html")
+
+
+@app.get("/media/{session_id}.mp4", include_in_schema=False)
+def media(session_id: int):
+    """Video local de la sesión, con soporte de rangos HTTP (necesario para saltar a un minuto)."""
+    with Session(engine) as db:
+        s = db.get(ClassSession, session_id)
+    if not s or not s.video_path or not Path(s.video_path).exists():
+        raise HTTPException(404, "La sesión no tiene video local")
+    return FileResponse(s.video_path, media_type="video/mp4")
 
 
 app.mount("/", StaticFiles(directory=config.FRONTEND_DIR, html=True), name="frontend")

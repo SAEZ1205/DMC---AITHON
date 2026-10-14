@@ -41,7 +41,8 @@ function renderHeader() {
   qs('#sessionCrumb').textContent = `Sesión ${s.number}`;
   const minutes = Math.round(s.duration_s / 60);
   const length = minutes % 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes / 60} h`;
-  qs('#sessionMeta').textContent = `${fmtDate(s.starts_at, { weekday: 'long', day: 'numeric', month: 'long' })} · ${length} de clase`;
+  qs('#sessionMeta').textContent = `${fmtDate(s.starts_at, { weekday: 'long', day: 'numeric', month: 'long' })} · ${length} de clase`
+    + (s.approx_times ? ' · los minutos de la transcripción son aproximados' : '');
 }
 
 function renderBanner(banner = detail.banner) {

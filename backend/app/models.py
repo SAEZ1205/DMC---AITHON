@@ -51,7 +51,10 @@ class ClassSession(SQLModel, table=True):
     starts_at: NaiveDatetime
     ends_at: NaiveDatetime
     video_path: Optional[str] = None
+    video_url: Optional[str] = None
     transcript_path: Optional[str] = None
+    approx_times: bool = False  # transcripción sin marcas de tiempo: minutos aproximados
+    real_content: bool = False  # contenido de una sesión real (no de muestra)
     processed: bool = False
 
 
@@ -73,6 +76,24 @@ class Chapter(SQLModel, table=True):
     summary: str = ""
     is_key: bool = False
     validated: bool = False
+    slide_from: Optional[int] = None
+    slide_to: Optional[int] = None
+    source: str = "texttiling"  # slides, texttiling, docente
+    logistics: bool = False
+    key_sentences_json: str = "[]"
+
+
+class MaterialUnit(SQLModel, table=True):
+    __tablename__ = "material_unit"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    session_id: int = Field(index=True)
+    source_file: str  # ruta relativa dentro de materials/
+    category: str = ""  # Descubre, Explora, Aplica…
+    kind: str = "slide"  # slide, page, block, code
+    unit_no: int
+    title: str = ""
+    text: str = ""
+    is_key: bool = False
 
 
 class SessionSummary(SQLModel, table=True):
@@ -129,8 +150,26 @@ class ChatMessage(SQLModel, table=True):
     session_id: int = Field(index=True)
     role: str  # user, assistant
     text: str
-    kind: Optional[str] = None  # contenido, logistica, otro (solo preguntas del alumno)
+    kind: Optional[str] = None  # contenido, logistica, plataforma (solo preguntas del alumno)
     at: NaiveDatetime
+    thread_id: Optional[int] = Field(default=None, index=True)
+    level: Optional[int] = None
+    meta_json: str = "{}"  # citas, diapositivas y botones de la respuesta del asistente
+
+
+class ChatThread(SQLModel, table=True):
+    __tablename__ = "chat_thread"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(index=True)
+    session_id: int = Field(index=True)
+    question: str
+    chapter_id: Optional[int] = None
+    level: int = 1
+    max_level: int = 4  # 2 si la pregunta se parece al quiz y el alumno aún no lo aprueba
+    attempts: int = 0
+    evaluation: Optional[str] = None  # correcta, parcial, incorrecta
+    closed: bool = False
+    created_at: NaiveDatetime
 
 
 class QuizItem(SQLModel, table=True):
@@ -140,6 +179,13 @@ class QuizItem(SQLModel, table=True):
     options_json: str
     answer_idx: int
     explanation: str = ""
+    minute: Optional[str] = None  # "mm:ss" donde se explica
+    slide: Optional[int] = None
+    status: str = "borrador"  # borrador, aprobada, descartada
+    source: str = "docente"  # docente, propuesta_ia
+    edited_by_teacher: bool = False
+    approved_by: Optional[int] = None
+    approved_at: Optional[NaiveDatetime] = None
 
 
 class QuizAttempt(SQLModel, table=True):

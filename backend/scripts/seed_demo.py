@@ -24,17 +24,7 @@ sys.path.insert(0, str(BACKEND))
 
 from app import config  # noqa: E402
 
-TOPICS = [
-    "Introducción a n8n y primeros flujos", "Nodos, ítems y ejecuciones", "Triggers y Schedule Trigger",
-    "Webhooks, HTTP Request y expresiones", "Google Sheets y Gmail", "Lógica: IF, Switch y Merge",
-    "Transformación de datos con Edit Fields y Code", "APIs REST y autenticación", "Bases de datos con n8n",
-    "Manejo de errores y monitoreo", "Introducción a IA generativa", "AI Agent y herramientas",
-    "Memoria y contexto en agentes", "RAG con documentos", "Clasificación y extracción con LLM",
-    "Chatbots en WhatsApp y Telegram", "Automatización de reportes", "Integración con CRM",
-    "Flujos de aprobación", "Despliegue con Docker", "Variables de entorno y seguridad",
-    "Escalamiento y colas", "Buenas prácticas y versionado", "Casos de negocio", "Taller de proyecto final",
-    "Presentación de proyectos",
-]
+SAMPLE_TITLE = "Contenido de muestra"
 STAFF = [
     ("Lincoln Villanueva", "lincoln.villanueva@dmc.pe", "docente"),
     ("Michela López", "michela.lopez@dmc.pe", "asistente_academico"),
@@ -84,6 +74,7 @@ def seed() -> None:
     from app.models import (ChatMessage, ClassSession, Course, Enrollment, Heartbeat, MicroAnswer, QuizAttempt,
                             User, WatchRange)
     from app.services.processing import process_session
+    from app.services.real_session import apply_to_session, has_real_content
     from app.services.recompute import recompute_course
     from app.services.zoom_ingest import ingest_session
 
@@ -125,8 +116,7 @@ def seed() -> None:
         sessions: dict[int, ClassSession] = {}
         for row in sessions_rows:
             n = int(row["number"])
-            topic = TOPICS[(n - 1) // 2 % len(TOPICS)]
-            s = ClassSession(course_id=course.id, number=n, title=f"{topic} ({'teoría' if n % 2 else 'práctica'})",
+            s = ClassSession(course_id=course.id, number=n, title=SAMPLE_TITLE,
                              starts_at=datetime.fromisoformat(row["starts_at"]),
                              ends_at=datetime.fromisoformat(row["ends_at"]),
                              transcript_path=str(sample_vtt), video_path=str(sample_mp4) if sample_mp4.exists() else None)
@@ -135,12 +125,14 @@ def seed() -> None:
             sessions[n] = s
         db.commit()
 
+        real_sessions: set[int] = set()
         for n, s in sessions.items():
             ingest_session(db, s, cohort / "zoom" / str(n), store_transcript=False)
-            real = config.ZOOM_DIR / str(s.id)
-            if real.exists():
-                ingest_session(db, s, real, store_transcript=True, attendance=False)
-                print(f"Sesión {s.id}: contenido tomado de {real}")
+            real = config.ZOOM_DIR / str(n)
+            if has_real_content(real):
+                apply_to_session(db, s, real)
+                real_sessions.add(n)
+                print(f"Sesión {n}: contenido real tomado de {real} («{s.title}»)")
 
         events = json.loads((cohort / "platform_events.json").read_text(encoding="utf-8"))
         for e in events["watch"]:

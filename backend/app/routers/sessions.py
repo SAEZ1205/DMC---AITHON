@@ -57,11 +57,12 @@ def session_detail(session_id: int, user: User = Depends(current_user), db: Sess
                     "attended": lm.attended,
                     "chapter_ids": [ch.id for ch in chapters if overlap(absent, [(ch.start, ch.end)]) > 0],
                 }
+    video_url = s.video_url or (f"/media/{s.id}.mp4" if s.video_path and Path(s.video_path).exists() else None)
     return {
         "session": {"id": s.id, "number": s.number, "title": s.title, "course_id": s.course_id,
                     "starts_at": iso(s.starts_at), "ends_at": iso(s.ends_at), "duration_s": duration,
-                    "has_video": bool(s.video_path and Path(s.video_path).exists()),
-                    "video_url": f"/api/sessions/{s.id}/video" if s.video_path and Path(s.video_path).exists() else None,
+                    "has_video": bool(video_url), "video_url": video_url,
+                    "approx_times": s.approx_times, "real_content": s.real_content,
                     "processed": s.processed},
         "course": {"key_coverage_min": course.key_coverage_min, "quiz_pass_score": course.quiz_pass_score,
                    "questions_per_quiz": config.QUIZ_QUESTIONS_PER_ATTEMPT},
