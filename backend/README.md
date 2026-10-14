@@ -103,16 +103,19 @@ Reloj fijo: `SIM_NOW=2026-10-12T19:00:00`. Si tocaste la base durante pruebas, v
 1. **Alumno con cambio de horario**  
    En `http://localhost:8000` → **Entrar como alumno**. Entra Plinio Núñez.  
    - Campana con 1 aviso de nivel 1.  
-   - **Mi avance**: proyección ~67 % (&lt; 80 %), 2 clases por recuperar (sesiones 23 y 24).  
-   - Abrir la sesión 24 → banner de plazo, «Lo que te perdiste», chat (pregunta algo de n8n), interruptor de tramos clave, quiz ≥ 3/5.  
-   - Tras ver tramos + aprobar, la sesión pasa a **Recuperada** y la proyección sube.
+   - **Mi avance**: proyección ~67 % (&lt; 80 %), 2 clases por recuperar (sesiones 23 y 24) y los minutos reales de tramos clave que faltan (~160 min, ~107 min a 1.5×).  
+   - Abrir la **sesión 23** (sesión real): capítulos con títulos de las diapositivas, pestaña **Resumen**, «Lo que te perdiste», interruptor de tramos clave.  
+   - **Chat tutor:** «¿Qué hace Docker?» → nivel 1 (ubica el minuto y la diapositiva) → «Dame una pista» → nivel 2 → responder en el mismo hilo y ver la evaluación. «¿Cuándo vence esta sesión?» responde con tus datos (sin LLM). «¿Cuál es la capital de Francia?» → «Eso no se vio en esta clase…».  
+   - Quiz ≥ 3/5. Tras ver tramos + aprobar, la sesión pasa a **Recuperada** y la proyección sube (persiste al recargar).
 
 2. **Tutor / Asistente Académica**  
    Cerrar sesión → **Entrar como tutor** (Michela López).  
    - Contadores: ~18 activos, 6 en adaptación, 6 en riesgo, 1 alerta de nivel 2.  
    - Tabla con motivos en lenguaje claro; filtrar por estado.  
    - **Cola de nivel 2** (p. ej. Fabricio Garrido) → registrar contacto (canal, resultado, cerrar).  
-   - Pestaña **Tramos clave** → validar los de una sesión; debajo, «Temas que más cuestan» (hilos simulados del tutor).
+   - Pestaña **Tramos clave** → sesión 23: editar título/inicio/fin y validar; debajo, «Temas que más cuestan» (hilos simulados del tutor).  
+  - Pestaña **Quiz** → sesión 23: 5 preguntas aprobadas y 3 borradores «propuesta IA» para revisar y aprobar una por una.  
+  - Al terminar: `POST /api/admin/reset-demo` para dejar la demo como al inicio.
 
 3. **Vista móvil**  
    DevTools ≤ 390 px en `progress.html` / `recording.html` / `tutor.html`: menú hamburguesa, avance y recuperación usables.
@@ -121,17 +124,19 @@ Reloj fijo: `SIM_NOW=2026-10-12T19:00:00`. Si tocaste la base durante pruebas, v
 
 Demo pública: **https://dmc-aithon.vercel.app** (proyecto `dmc-aithon`, desplegado con la CLI desde la rama `mateo`, sin integración Git).
 
-- `pyproject.toml` (raíz) apunta a `backend.app.main:app` y declara las dependencias. El frontend se sirve desde el CDN gracias al `StaticFiles` de FastAPI.
-- El build (`backend/scripts/vercel_build.py`) genera la cohorte y `backend/data/dmc.db` con el reloj de la demo.
-- Al arrancar, la función copia esa base a `/tmp/dmc.db` (el bundle es de solo lectura). Los cambios (quiz, contactos, chat) duran mientras viva la instancia; tras unos minutos sin tráfico la demo vuelve al estado inicial.
+- `pyproject.toml` (raíz) apunta a `backend.app.main:app` y declara las dependencias (incluye `psycopg[binary]`, `python-pptx`, `pypdf`, `python-docx`). El frontend se sirve con el `StaticFiles` de FastAPI.
+- **Base de datos: Neon Postgres** (Vercel Marketplace, recurso `dmc-aithon-db`), conectada al proyecto; la integración define `DATABASE_URL`. Los cambios (quiz, avance, chat, contactos) **persisten** entre recargas e instancias.
+- El build (`backend/scripts/vercel_build.py`) genera la cohorte y la base de demo `backend/data/dmc.db` (SQLite, con la sesión real en la 23) y, si Neon está vacío, la copia allí.
+- **Volver al estado inicial:** `POST /api/admin/reset-demo` con un usuario staff (p. ej. `X-User-Id` de Michela). Recrea las tablas y copia la base de demo del despliegue en ~2 s. Hazlo **después de cada despliegue** con cambios de datos o de modelos, y antes de presentar.
+- **Sesión real en la demo publicada:** `.vercelignore` deja subir `backend/data/zoom/23/` (transcripción, materiales y quiz; nunca el video) para que el build la cargue. Esos archivos van al despliegue, no a Git, así que solo se puede redesplegar desde una máquina que los tenga. Sin video en Vercel: la sesión 23 usa el reproductor de transcripción.
 - El recálculo horario (APScheduler) se desactiva en Vercel.
-- Variables: `SIM_NOW` en Producción. Para usar Kimi, agrega `LLM_API_KEY` con `vercel env add LLM_API_KEY production` y vuelve a desplegar.
-- `.vercelignore` excluye `.venv`, `.env`, tests, datos de Zoom/cohorte y la base local.
+- Variables: `SIM_NOW` y `DATABASE_URL` (Neon) en Producción. Para usar Kimi, agrega `LLM_API_KEY` con `vercel env add LLM_API_KEY production` y vuelve a desplegar.
 
-Redesplegar (desde la raíz del repo, en la rama `mateo`):
+Redesplegar y reiniciar la demo (desde la raíz del repo, en la rama `mateo`):
 
 ```powershell
 vercel deploy --prod
+curl.exe -X POST https://dmc-aithon.vercel.app/api/admin/reset-demo -H "X-User-Id: 2"
 ```
 
 ## Estructura
