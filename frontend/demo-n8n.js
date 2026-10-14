@@ -72,6 +72,8 @@
     if (player.readyState >= 1) apply(); else player.addEventListener("loadedmetadata", apply, { once: true });
   }
 
+  window.RescueDemo = { seekTo };       // lo usa la pestaña «Validar aprendizaje» para llevar al minuto de la clase
+
   /* ---------------- clase y video ---------------- */
   async function loadLesson() {
     lesson = await api("/api/demo/lesson");

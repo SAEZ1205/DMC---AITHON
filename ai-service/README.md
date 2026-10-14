@@ -4,6 +4,16 @@ Carpeta reservada para el módulo de inteligencia artificial y sus APIs.
 
 La idea es mantener esta lógica separada del frontend para que ambos equipos puedan trabajar sin pisarse archivos. Cuando el servicio esté listo, el frontend se conectará mediante endpoints definidos por el equipo de IA/backend.
 
+## Etapa 8: Agente Validador — Participación Efectiva (simulación local)
+
+Pestaña **Validar aprendizaje** en `frontend/demo-n8n.html` (`frontend/validator-n8n.js`). Quiz de **2 preguntas** de opción múltiple sobre la clase real de n8n (09:18–10:10 y 25:44–26:15), verificadas contra la
+transcripción. Resultado 0/2, 1/2 o 2/2 calculado al pulsar «Validar respuestas», nuevo intento con «Volver a intentar» y mensaje «Comprensión validada (**simulación académica**)».
+
+- **Es una simulación 100 % local:** sin backend, sin Kimi/NVIDIA, sin base de datos, sin `localStorage`. No registra asistencia, participación ni calificaciones y no certifica nada.
+- **No reutiliza el backend de quizzes** (`/api/quiz/*`): ese flujo persiste intentos y telemetría en SQLite, limita a 3 intentos por clase y su banco solo cubre el curso SQL ficticio.
+- El backend, el tutor, el guardián, el recuperador y el resumen **no se modificaron**; el único cambio en `demo-n8n.js` es exponer `window.RescueDemo.seekTo` para que las referencias del quiz lleven al video.
+- Pruebas: `tests/test_validator.py` (estructura, contenido, calificación 0/1/2, nuevo intento, pestañas, sin red, convivencia con el chat/resumen/video y NVIDIA caído) en un Chrome real y solo contra `127.0.0.1`.
+
 ## Etapa 7: calidad del tutor, citas y resumen local
 
 Todo local y determinista: **no se hizo ninguna llamada a NVIDIA** (las pruebas usan transporte simulado y `conftest` bloquea la red externa).

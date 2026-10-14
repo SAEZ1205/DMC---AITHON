@@ -28,7 +28,13 @@
 
       <div id="errorPanel" class="demo-error" hidden></div>
 
-      <div class="demo-grid">
+      <!-- PESTAÑAS: «Clase y tutor» (lo ya existente) y «Validar aprendizaje» (simulación local) -->
+      <nav class="demo-tabs" role="tablist" aria-label="Secciones de la demostración">
+        <button type="button" role="tab" id="tabClass" class="demo-tab active" aria-selected="true" aria-controls="panelClass"><i class="fa-solid fa-circle-play"></i> Clase y tutor</button>
+        <button type="button" role="tab" id="tabValidator" class="demo-tab" aria-selected="false" aria-controls="panelValidator" tabindex="-1"><i class="fa-solid fa-clipboard-check"></i> Validar aprendizaje</button>
+      </nav>
+
+      <div class="demo-grid" id="panelClass" role="tabpanel" aria-labelledby="tabClass">
         <div class="demo-col">
           <!-- ZONA DE VIDEO -->
           <section class="content-card demo-card" aria-labelledby="videoHeading">
@@ -65,10 +71,36 @@
           </section>
         </aside>
       </div>
+
+      <!-- AGENTE VALIDADOR (simulación académica local: sin backend, sin modelo, sin registros) -->
+      <section id="panelValidator" class="demo-validator" role="tabpanel" aria-labelledby="tabValidator" hidden>
+        <div class="content-card demo-card demo-quiz">
+          <h2 id="validatorHeading"><i class="fa-solid fa-clipboard-check"></i> Agente Validador — Participación Efectiva</h2>
+          <p class="demo-badges">
+            <span class="demo-pill warn">Simulación académica</span>
+            <span class="demo-pill">Local · sin IA ni servidor</span>
+            <span id="quizAttempt" class="demo-pill">Intento 1</span>
+          </p>
+          <p class="demo-overview">Responde estas dos preguntas sobre la clase de n8n. Si las respondes bien, la demostración simula cómo se validaría que comprendiste el contenido
+            y recuperaste tu participación. Cada pregunta indica el minuto de la clase donde se explica.</p>
+          <form id="quizForm" onsubmit="return false" novalidate>
+            <div id="quizQuestions" class="demo-q-list"></div>
+            <div class="demo-quiz-actions">
+              <button type="button" id="quizValidate" class="demo-btn">Validar respuestas</button>
+              <button type="button" id="quizRetry" class="demo-btn secondary" hidden>Volver a intentar</button>
+              <span id="quizHint" class="demo-meta" aria-live="polite">Respondidas: 0 de 2.</span>
+            </div>
+          </form>
+          <div id="quizResult" class="demo-quiz-result" role="status" aria-live="polite"></div>
+          <p class="demo-note">Esto es una <strong>simulación académica</strong>, una prueba de concepto para un futuro flujo institucional. No certifica asistencia, no actualiza
+            registros de participación ni calificaciones, no guarda tus respuestas y no usa el tutor ni ningún modelo de lenguaje.</p>
+        </div>
+      </section>
     </main>
     <footer class="page-footer">Demostración RescuePath AI · Clase real de DMC Institute para uso local — no publicar</footer>
   </div>
 
   <script src="demo-n8n.js"></script>
+  <script src="validator-n8n.js"></script>
 </body>
 </html>
