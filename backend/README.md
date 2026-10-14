@@ -88,7 +88,7 @@ Metas (sección 12 de la especificación):
 
 | Criterio | Cómo se verifica |
 |---|---|
-| Pytest | `pytest` → 73 tests |
+| Pytest | `pytest` → 75 tests |
 | Diagnóstico | `evaluate.py`: recall ≥ 80 % (≥ 14 días), falsas alarmas ≤ 20 %, adaptados no en riesgo |
 | Asistencia efectiva | `check_attendance.py`: 5 perfiles + 1 recuperación fuera de plazo coinciden con el motor |
 | Chat tutor | `eval_chat.py`: minuto citado a ±90 s ≥ 16/20, primer turno con pregunta y ≤ 90 palabras 20/20, quiz revelado 0/5, fuera de la clase 5/5 (mock: 16 · 20 · 0 · 5) |

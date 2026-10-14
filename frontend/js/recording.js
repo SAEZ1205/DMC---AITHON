@@ -1,6 +1,6 @@
 // Vista de clase: reproductor, capítulos, resumen, «Lo que te perdiste», chat, quiz, micro-pregunta y banner.
 import {
-  api, beacon, esc, fmtDate, fmtTime, linkTimestamps, pct, qs, qsa, renderMarkdown, requireUser, toast,
+  api, beacon, esc, fmtDate, fmtTime, linkTimestamps, pct, plural, qs, qsa, renderMarkdown, requireUser, toast,
 } from './api.js';
 import { createPlayer, WatchTracker } from './player.js';
 import { markActive } from './tracker.js';
@@ -312,8 +312,8 @@ function quizIntro(best, attempts) {
   qs('#tab-quiz').innerHTML = `
     <div class="sol-quiz-intro">
       <i class="fa-solid fa-clipboard-question"></i>
-      <p>${n} preguntas al azar sobre los tramos clave. Apruebas con <strong>${pass} o más</strong>. Intentos ilimitados: vale tu mejor nota.</p>
-      ${best != null ? `<p>Tu mejor nota: <strong>${best}/${n}</strong> en ${attempts} intento${attempts === 1 ? '' : 's'}.</p>` : ''}
+      <p>${plural(n, 'pregunta')} al azar sobre los tramos clave. Apruebas con <strong>${pass} o más</strong>. Intentos ilimitados: vale tu mejor nota.</p>
+      ${best != null ? `<p>Tu mejor nota: <strong>${best}/${n}</strong> en ${plural(attempts, 'intento')}.</p>` : ''}
       <button type="button" class="sol-btn" id="quizStart">${best != null ? 'Intentar de nuevo' : 'Empezar quiz'}</button>
     </div>`;
   qs('#quizStart').addEventListener('click', startQuiz);
@@ -356,7 +356,7 @@ async function showQuizResult(res) {
   qs('#tab-quiz').innerHTML = `
     <div class="sol-quiz-result ${res.passed ? 'ok' : 'bad'}">
       <strong>${res.score}/${res.total}</strong>
-      <span>${res.passed ? '¡Aprobaste el quiz!' : `Necesitas ${res.pass_score} correctas. Repasa los minutos indicados e inténtalo de nuevo.`}</span>
+      <span>${res.passed ? '¡Aprobaste el quiz!' : `Necesitas ${plural(res.pass_score, 'correcta')}. Repasa los minutos indicados e inténtalo de nuevo.`}</span>
     </div>
     <ol class="sol-quiz-review">${res.results.map(r => `<li class="${r.correct ? 'ok' : 'bad'}">
       <p><i class="fa-solid fa-${r.correct ? 'check' : 'xmark'}"></i> ${esc(r.question)}</p>

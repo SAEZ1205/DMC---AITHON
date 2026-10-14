@@ -18,7 +18,7 @@ from ..models import ClassSession, Course, User
 from . import quiz as quiz_service
 from .attendance import EN_VIVO, NO_CUMPLIDA, POR_RECUPERAR, RECUPERADA
 from .recompute import compute_course
-from .text import fecha_larga, strip_accents
+from .text import fecha_larga, key_time, plural, strip_accents
 
 PLATAFORMA, LOGISTICA, CONTENIDO = "plataforma", "logistica", "contenido"
 
@@ -85,11 +85,11 @@ def platform_answer(db: Session, session: ClassSession, user: User, now: datetim
         coverage_ok = c.key_coverage >= course.key_coverage_min - 1e-9
         quiz_ok = c.best_quiz is not None and c.best_quiz >= course.quiz_pass_score
         active = quiz_service.is_active(len(quiz_service.approved_items(db, session.id)))
-        seen = f"{round(c.key_coverage * 100)} % visto"
+        left = f"{key_time(c.key_minutes_left)}; llevas {round(c.key_coverage * 100)} % visto"
         if not coverage_ok and not quiz_ok:
-            todo = f"Te faltan los tramos clave ({seen}) y el quiz."
+            todo = f"Te faltan {left}, y el quiz."
         elif not coverage_ok:
-            todo = f"Ya aprobaste el quiz; te faltan los tramos clave ({seen})."
+            todo = f"Ya aprobaste el quiz; te faltan {left}."
         else:
             todo = "Ya viste los tramos clave; te falta aprobar el quiz."
         if not quiz_ok and not active:
@@ -99,7 +99,7 @@ def platform_answer(db: Session, session: ClassSession, user: User, now: datetim
     if pending:
         parts.append(f"También tienes por recuperar {_sessions_text(pending)}.")
     threshold = round(ind.threshold * 100)
-    parts.append(f"Tu asistencia efectiva va en {ind.complied} de {ind.dictated} sesiones dictadas "
+    parts.append(f"Tu asistencia efectiva va en {ind.complied} de {plural(ind.dictated, 'sesión dictada', 'sesiones dictadas')} "
                  f"({round(ind.effective * 100)} %); para el certificado necesitas {threshold} % al final del curso.")
     return RoutedAnswer(PLATAFORMA, " ".join(parts), link={"href": "progress.html", "label": "Ver Mi avance"},
                         data={"status": c.status if c else None})

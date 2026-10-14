@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import json
+import math
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from statistics import mean
 from typing import Literal
 
@@ -36,7 +37,15 @@ def _open_alerts(db: Session, course_id: int, now: datetime) -> dict[int, Alert]
     return {a.user_id: a for a in rows}
 
 
-def _student_row(st: StudentStatus, alert: Alert | None) -> dict:
+def escalates_in_hours(alert: Alert, last_activity_at: datetime | None, now: datetime) -> int | None:
+    """Horas para que una alerta de nivel 1 pase a nivel 2; None si ya escaló o el alumno tuvo actividad."""
+    if alert.level != 1 or (last_activity_at and last_activity_at > alert.created_at):
+        return None
+    left = (alert.created_at + timedelta(hours=config.ESCALATION_HOURS) - now).total_seconds() / 3600
+    return max(0, math.ceil(left))
+
+
+def _student_row(st: StudentStatus, alert: Alert | None, now: datetime) -> dict:
     cur = st.current
     return {
         "user_id": st.student.user_id,
@@ -50,7 +59,8 @@ def _student_row(st: StudentStatus, alert: Alert | None) -> dict:
         "days_since_activity": round(cur.days_since_activity, 1),
         "quiz_recent_mean": round(cur.quiz_recent_mean, 2) if cur.quiz_recent_mean is not None else None,
         "alert": {"id": alert.id, "level": alert.level, "created_at": iso(alert.created_at),
-                  "escalated_at": iso(alert.escalated_at)} if alert else None,
+                  "escalated_at": iso(alert.escalated_at),
+                  "escalates_in_h": escalates_in_hours(alert, cur.last_activity_at, now)} if alert else None,
     }
 
 
@@ -60,7 +70,7 @@ def students(course_id: int, db: Session = Depends(get_db)) -> dict:
     now = config.now()
     data, statuses = compute_course(db, course.id, now)
     alerts = _open_alerts(db, course.id, now)
-    rows = sorted((_student_row(st, alerts.get(uid)) for uid, st in statuses.items()),
+    rows = sorted((_student_row(st, alerts.get(uid), now) for uid, st in statuses.items()),
                   key=lambda r: (STATE_ORDER[r["state"]], r["projection"]))
     counts = Counter(r["state"] for r in rows)
     return {
@@ -149,7 +159,7 @@ def timeline(user_id: int, course_id: int, db: Session = Depends(get_db)) -> dic
                                                           WithdrawalRequest.course_id == course.id)).all()
     cur = st.current
     return {
-        "student": _student_row(st, alerts[0] if alerts and alerts[0].status == "abierta" else None),
+        "student": _student_row(st, alerts[0] if alerts and alerts[0].status == "abierta" else None, now),
         "features": {
             "active_min_week": round(cur.active_min_week, 1), "study_hour_mode": cur.study_hour_mode,
             "previous_study_hour_mode": cur.previous_study_hour_mode,

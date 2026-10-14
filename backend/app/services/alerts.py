@@ -10,20 +10,20 @@ from .. import config
 from ..models import Alert, Course, Outbox
 from .attendance import Indicators
 from .risk import ACTIVO, EN_ADAPTACION, EN_RIESGO, INACTIVO
-from .text import fecha_larga
+from .text import fecha_larga, key_time, plural
 
 CHANNELS = ("portal", "email", "whatsapp")
 
 
-def level1_text(ind: Indicators) -> str:
+def level1_text(ind: Indicators, course: Course) -> str:
     if ind.pending_items:
         first = ind.pending_items[0]
         n = len(ind.pending_items)
-        clases = "clase" if n == 1 else "clases"
-        return (f"Tienes {n} {clases} por recuperar; la primera vence el {fecha_larga(first.deadline)}. "
-                f"Recuperar una clase toma unos {config.RECOVERY_MINUTES_HINT} minutos.")
-    return (f"Te faltan {ind.missing} sesiones para llegar al {round(ind.threshold * 100)} % de asistencia. "
-            f"Revisa «Mi avance»: recuperar una clase con la grabación toma unos {config.RECOVERY_MINUTES_HINT} minutos.")
+        return (f"Tienes {plural(n, 'clase')} por recuperar; la primera vence el {fecha_larga(first.deadline)}. "
+                f"Te faltan {key_time(ind.pending_key_minutes)} y el quiz de cada clase.")
+    return (f"Te faltan {plural(ind.missing, 'sesión', 'sesiones')} para llegar al {round(ind.threshold * 100)} % "
+            "de asistencia. Revisa «Mi avance»: asiste en vivo o recupera cada clase dentro de los "
+            f"{course.recovery_days} días siguientes.")
 
 
 def open_alert(db: Session, user_id: int, course_id: int) -> Alert | None:
@@ -47,7 +47,7 @@ def process_alert(db: Session, course: Course, user_id: int, state: str, reasons
             alert = Alert(user_id=user_id, course_id=course.id, level=1, created_at=now, reasons_json=reasons_json)
             db.add(alert)
             db.flush()
-            text = level1_text(ind)
+            text = level1_text(ind, course)
             for channel in CHANNELS:
                 db.add(Outbox(user_id=user_id, course_id=course.id, alert_id=alert.id, channel=channel, text=text, at=now))
         elif state == INACTIVO:

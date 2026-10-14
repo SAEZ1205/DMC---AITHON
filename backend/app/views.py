@@ -33,6 +33,7 @@ def compliance_json(c: Compliance, now: datetime) -> dict:
         "completed_at": iso(c.completed_at),
         "live_ratio": round(c.live.live_ratio, 3),
         "key_coverage": round(c.key_coverage, 3),
+        "key_minutes_left": c.key_minutes_left,
         "best_quiz": c.best_quiz,
     }
 
@@ -52,6 +53,7 @@ def indicators_json(ind: Indicators) -> dict:
         "projection": round(ind.projection, 4),
         "recent_rate": round(ind.recent_rate, 4),
         "missing": ind.missing,
+        "pending_key_minutes": ind.pending_key_minutes,
     }
 
 

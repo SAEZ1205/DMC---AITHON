@@ -1,6 +1,7 @@
 // Mi avance: asistencia efectiva frente al umbral, proyección, faltantes, clases por recuperar,
 // notas de quiz y requisitos del certificado.
-import { api, currentCourseId, esc, pct, qs, requireUser } from './api.js';
+import { api, currentCourseId, esc, getMe, keyTime, pct, plural, qs, requireUser } from './api.js';
+import { consentBanner } from './consent.js';
 
 requireUser();
 
@@ -19,12 +20,12 @@ function render(p) {
   const needed = Math.ceil(thr * p.total - 1e-9);
   const below = p.projection < thr;
   const recovery = p.course.recovery_days;
-  const days = n => `${n} día${n === 1 ? '' : 's'}`;
+  const keyLeft = c => c.key_minutes_left ? `faltan ${keyTime(c.key_minutes_left)}` : 'tramos clave vistos';
 
   const pendingHtml = p.pending_items.length ? p.pending_items.map(c => `
     <li><span><strong>Sesión ${c.number}</strong> – ${esc(c.title)}
-      <small>Vence el ${esc(c.deadline_text)}${c.days_left != null ? ` (${c.days_left ? `quedan ${days(c.days_left)}` : 'vence hoy'})` : ''}
-      · tramos clave ${pct(c.key_coverage)} · quiz ${c.best_quiz == null ? 'sin intentos' : `${c.best_quiz}/5`}</small></span>
+      <small>Vence el ${esc(c.deadline_text)}${c.days_left != null ? ` (${c.days_left ? `${c.days_left === 1 ? 'queda' : 'quedan'} ${plural(c.days_left, 'día')}` : 'vence hoy'})` : ''}
+      · ${keyLeft(c)} (${pct(c.key_coverage)} visto) · quiz ${c.best_quiz == null ? 'sin intentos' : `${c.best_quiz}/5`}</small></span>
       <a class="sol-btn sol-btn-sm" href="recording.html?session=${c.session_id}"><i class="fa-solid fa-circle-play"></i> Recuperar</a></li>`).join('')
     : '<li><span class="sol-muted">No tienes clases por recuperar. ¡Bien!</span></li>';
 
@@ -42,11 +43,11 @@ function render(p) {
   qs('#progressRoot').innerHTML = `
     <div class="sol-kpis">
       <div class="sol-kpi ${p.effective >= thr ? 'ok' : 'warn'}"><span>Asistencia efectiva</span><strong>${pct(p.effective)}</strong>
-        <small>${p.complied} de ${p.dictated} sesiones dictadas</small></div>
+        <small>${p.complied} de ${plural(p.dictated, 'sesión dictada', 'sesiones dictadas')}</small></div>
       <div class="sol-kpi ${below ? 'bad' : 'ok'}"><span>Proyección al cierre</span><strong>${pct(p.projection)}</strong>
         <small>${below ? `menor que el ${pct(thr)} requerido` : `sobre el ${pct(thr)} requerido`}</small></div>
       <div class="sol-kpi"><span>Te faltan</span><strong>${p.missing}</strong>
-        <small>sesiones para el ${pct(thr)} (quedan ${p.remaining_sessions})</small></div>
+        <small>${p.missing === 1 ? 'sesión' : 'sesiones'} para el ${pct(thr)} (${p.remaining_sessions === 1 ? 'queda' : 'quedan'} ${p.remaining_sessions})</small></div>
       <div class="sol-kpi ${p.pending ? 'warn' : 'ok'}"><span>Por recuperar</span><strong>${p.pending}</strong>
         <small>${p.pending_items[0] ? `la primera vence el ${esc(p.pending_items[0].deadline_short)}` : 'al día'}</small></div>
     </div>
@@ -61,14 +62,14 @@ function render(p) {
         <div class="sol-legend">
           <span><i style="background:var(--blue)"></i>Cumplidas: ${p.complied} de ${p.total} sesiones del programa</span>
           <span><i style="background:rgba(42,123,183,.25)"></i>Proyección a tu ritmo actual: ${pct(p.projection)}</span>
-          <span><i style="background:#455a64;width:3px"></i>Necesitas ${needed} sesiones cumplidas</span>
+          <span><i style="background:#455a64;width:3px"></i>Necesitas ${plural(needed, 'sesión cumplida', 'sesiones cumplidas')}</span>
         </div>
       </div>
       <p class="${below ? 'sol-banner sol-banner-warn' : 'sol-banner sol-banner-ok'}">
         <i class="fa-solid ${below ? 'fa-triangle-exclamation' : 'fa-circle-check'}"></i>
         <span>${below
-          ? `A tu ritmo de las últimas 4 sesiones terminarías con ${pct(p.projection)}, por debajo del ${pct(thr)}. ${p.pending ? `Recupera tus ${p.pending} clase${p.pending === 1 ? '' : 's'} pendiente${p.pending === 1 ? '' : 's'}: cada una toma unos 20 minutos.` : 'Asiste en vivo o recupera cada clase dentro de los 7 días.'}`
-          : `Vas bien: a tu ritmo actual terminarías con ${pct(p.projection)}. Si no puedes asistir en vivo, recupera la clase dentro de ${recovery} días.`}</span>
+          ? `A tu ritmo de las últimas 4 sesiones terminarías con ${pct(p.projection)}, por debajo del ${pct(thr)}. ${p.pending ? `Recupera ${p.pending === 1 ? 'tu clase pendiente' : `tus ${p.pending} clases pendientes`}: ${p.pending_key_minutes ? `te faltan ${keyTime(p.pending_key_minutes)} y el quiz de cada una.` : 'ya viste sus tramos clave; solo falta el quiz.'}` : `Asiste en vivo o recupera cada clase dentro de ${plural(recovery, 'día')}.`}`
+          : `Vas bien: a tu ritmo actual terminarías con ${pct(p.projection)}. Si no puedes asistir en vivo, recupera la clase dentro de ${plural(recovery, 'día')}.`}</span>
       </p>
       <p class="sol-note">En vivo: ${p.live} · Recuperadas: ${p.recovered} · Por recuperar: ${p.pending} · No cumplidas: ${p.failed}</p>
     </section>
@@ -94,6 +95,7 @@ function render(p) {
 async function init() {
   const courseId = await currentCourseId();
   render(await api(`/courses/${courseId}/progress`));
+  if (!(await getMe()).consent) consentBanner(qs('#progressRoot'));
 }
 
 init().catch(e => { qs('#progressRoot').innerHTML = `<p class="sol-empty">${esc(e.message)}</p>`; });

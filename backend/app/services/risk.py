@@ -42,16 +42,17 @@ def classify(cur: CurrentFeatures, ind: Indicators, course: Course) -> RiskResul
         a, b = cur.consecutive_failed
         reasons.append(f"2 clases seguidas sin cumplir (sesiones {a} y {b})")
     if cur.unrecovered and cur.unrecovered_balance >= max(config.MIN_UNRECOVERED, cur.recovered_recent):
-        nums = ", ".join(str(c.number) for c in cur.unrecovered)
+        nums = [str(c.number) for c in cur.unrecovered]
+        missed = f"la sesión {nums[0]}" if len(nums) == 1 else f"las sesiones {', '.join(nums[:-1])} y {nums[-1]}"
         if cur.late_shift:
             reasons.append(
                 f"Llega {round(cur.recent_late)} min tarde y sale {round(cur.recent_early)} min antes "
-                f"en las últimas 3 clases; no recuperó la(s) sesión(es) {nums}"
+                f"en las últimas 3 clases; no recuperó {missed}"
             )
         if cur.pattern_drop:
             reasons.append(
                 f"Su asistencia en vivo bajó a {_pct(cur.recent_live)} en las últimas 3 clases "
-                f"(antes {_pct(cur.previous_live)}) y no recuperó la(s) sesión(es) {nums}"
+                f"(antes {_pct(cur.previous_live)}) y no recuperó {missed}"
             )
     if cur.quiz_trend is not None and cur.quiz_trend < 0 and cur.quiz_recent_mean is not None \
             and cur.quiz_recent_mean < course.quiz_pass_score:

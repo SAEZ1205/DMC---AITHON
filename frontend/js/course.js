@@ -1,19 +1,27 @@
 // Página del curso: asistencia efectiva con marca del umbral y baja asistida.
-import { api, currentCourseId, esc, getUser, isStaff, pct, qs, qsa } from './api.js';
+import { api, currentCourseId, esc, getUser, isStaff, keyTime, pct, plural, qs, qsa } from './api.js';
 
 const REASONS = [
   ['tiempo', 'Falta de tiempo'], ['trabajo', 'Trabajo / cambio de horario'], ['contenido', 'El contenido'],
   ['economico', 'Motivos económicos'], ['salud', 'Salud'], ['otro', 'Otro'],
 ];
 const OFFERS = [
-  ['recuperar', 'fa-solid fa-circle-play', 'Recuperar las clases con las grabaciones', 'Cada clase se recupera en unos 20 minutos viendo sus tramos clave y aprobando el quiz.'],
+  ['recuperar', 'fa-solid fa-circle-play', 'Recuperar las clases con las grabaciones', 'Cada clase se recupera viendo sus tramos clave y aprobando el quiz.'],
   ['pausa', 'fa-solid fa-pause', 'Pausar y retomar en otra cohorte', 'Conservas lo avanzado y continúas cuando tengas tiempo.'],
   ['hablar_asistente', 'fa-regular fa-comments', 'Hablar con mi Asistente Académico', 'Te contacta para buscar juntos una alternativa.'],
 ];
 
+function recoveryText(p) {
+  if (!p?.pending) return OFFERS[0][3];
+  const classes = p.pending === 1 ? 'tu clase pendiente' : `tus ${p.pending} clases pendientes`;
+  return p.pending_key_minutes
+    ? `En ${classes} te faltan ${keyTime(p.pending_key_minutes)} y el quiz de cada una.`
+    : `Ya viste los tramos clave de ${classes}; solo falta aprobar el quiz.`;
+}
+
 async function renderAttendance(courseId) {
   const box = qs('#attendanceBox');
-  if (!box) return;
+  if (!box) return null;
   const p = await api(`/courses/${courseId}/progress`);
   qs('#attendanceLabel').textContent = `Asistencia efectiva ${pct(p.effective)}`;
   const fill = qs('#attendanceFill');
@@ -22,12 +30,13 @@ async function renderAttendance(courseId) {
   fill.classList.toggle('sol-fill-warn', p.effective < p.threshold);
   qs('#attendanceMark').style.left = `${p.threshold * 100}%`;
   qs('#attendanceMark').dataset.label = `Meta ${pct(p.threshold)}`;
-  qs('#attendanceDetail').innerHTML = `${p.complied} de ${p.dictated} sesiones dictadas cumplidas (en vivo o recuperadas)
+  qs('#attendanceDetail').innerHTML = `${p.complied} de ${plural(p.dictated, 'sesión dictada', 'sesiones dictadas')} cumplidas (en vivo o recuperadas)
     · Proyección al cierre <strong class="${p.projection < p.threshold ? 'sol-text-warn' : ''}">${pct(p.projection)}</strong>
     ${p.pending ? `· <a href="recordings.html">${p.pending} por recuperar</a>` : ''}`;
+  return p;
 }
 
-function withdrawalModal(courseId) {
+function withdrawalModal(courseId, progress) {
   const wrap = document.createElement('div');
   wrap.className = 'sol-modal-backdrop';
   wrap.innerHTML = `<div class="sol-modal" role="dialog" aria-modal="true" aria-labelledby="wdTitle">
@@ -41,7 +50,7 @@ function withdrawalModal(courseId) {
     </form>
     <div id="wdStep2" class="hidden">
       <p>Antes de confirmar, ¿te sirve alguna de estas opciones?</p>
-      <div class="sol-offer">${OFFERS.map(([k, icon, title, desc]) => `<button type="button" data-choice="${k}"><i class="${icon}"></i><span><strong>${title}</strong><br><small class="sol-muted">${desc}</small></span></button>`).join('')}</div>
+      <div class="sol-offer">${OFFERS.map(([k, icon, title, desc]) => `<button type="button" data-choice="${k}"><i class="${icon}"></i><span><strong>${title}</strong><br><small class="sol-muted">${k === 'recuperar' ? recoveryText(progress) : desc}</small></span></button>`).join('')}</div>
       <div class="sol-modal-actions"><button type="button" class="sol-btn sol-btn-ghost" data-close>Cancelar</button>
         <button type="button" class="sol-btn sol-btn-danger" data-choice="confirmar_retiro">Confirmar solicitud de retiro</button></div>
     </div>
@@ -82,12 +91,22 @@ function withdrawalModal(courseId) {
   }));
 }
 
+async function renderCourseInfo(courseId) {
+  const c = await api(`/courses/${courseId}`);
+  const fields = { courseStart: c.start_text, courseEnd: c.end_text, courseDays: c.days.toLowerCase(), courseHours: c.hours,
+    courseTeacher: c.teacher, courseAssistant: c.academic_assistant };
+  Object.entries(fields).forEach(([id, value]) => { if (value && qs(`#${id}`)) qs(`#${id}`).textContent = value; });
+}
+
 async function init() {
   const user = getUser();
-  if (!user || isStaff(user)) { qs('#withdrawWrap')?.classList.add('hidden'); return; }
+  if (!user) return;
   const courseId = await currentCourseId();
-  qs('#withdrawBtn')?.addEventListener('click', () => withdrawalModal(courseId));
-  await renderAttendance(courseId);
+  await renderCourseInfo(courseId).catch(() => {});
+  if (isStaff(user)) { qs('#withdrawWrap')?.classList.add('hidden'); return; }
+  let progress = null;
+  qs('#withdrawBtn')?.addEventListener('click', () => withdrawalModal(courseId, progress));
+  progress = await renderAttendance(courseId);
 }
 
 init().catch(() => {});

@@ -148,10 +148,15 @@ class Compliance:
     live: LiveMetrics
     key_coverage: float
     best_quiz: int | None
+    key_remaining_s: float = 0.0  # duración de los tramos clave menos lo ya visto
 
     @property
     def complied(self) -> bool:
         return self.status in COMPLIED
+
+    @property
+    def key_minutes_left(self) -> int:
+        return math.ceil(self.key_remaining_s / 60 - 1e-9)
 
 
 def evaluate_session(student: StudentData, session: SessionInfo, course: Course, now: datetime) -> Compliance:
@@ -161,10 +166,11 @@ def evaluate_session(student: StudentData, session: SessionInfo, course: Course,
     attempts = [(score, at) for score, at in student.quiz.get(session.id, []) if at <= now]
     best_quiz = max((s for s, _ in attempts), default=None)
     coverage_now = key_coverage(watch, session, until=now)
+    remaining = sum(b - a for a, b in key_targets(session)) * (1 - coverage_now)
 
     if live.live_ratio >= course.live_min_ratio:
         return Compliance(session.id, session.number, session.starts_at, EN_VIVO, deadline, session.ends_at,
-                          live, coverage_now, best_quiz)
+                          live, coverage_now, best_quiz, remaining)
 
     limit = min(now, deadline)
     _, coverage_at = coverage_reached_at(watch, session, course.key_coverage_min, limit)
@@ -176,7 +182,7 @@ def evaluate_session(student: StudentData, session: SessionInfo, course: Course,
     else:
         status, completed = NO_CUMPLIDA, None
     return Compliance(session.id, session.number, session.starts_at, status, deadline, completed,
-                      live, coverage_now, best_quiz)
+                      live, coverage_now, best_quiz, remaining)
 
 
 def evaluate_student(student: StudentData, data: CourseData, now: datetime) -> list[Compliance]:
@@ -200,6 +206,10 @@ class Indicators:
     projection: float
     missing: int
     pending_items: list[Compliance]
+
+    @property
+    def pending_key_minutes(self) -> int:
+        return sum(c.key_minutes_left for c in self.pending_items)
 
 
 def indicators(compliances: list[Compliance], course: Course) -> Indicators:

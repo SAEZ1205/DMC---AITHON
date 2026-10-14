@@ -96,6 +96,15 @@ def test_quiz_alone_is_not_enough():
     assert c.key_coverage == pytest.approx(0.5)
 
 
+def test_key_minutes_left_subtract_what_was_watched():
+    s = make_session(key_ranges=[(0.0, 1200.0), (3000.0, 3600.0)])  # 30 min de tramos clave
+    st = StudentData(1, watch={1: [(0.0, 600.0, START + timedelta(days=1))]})
+    c = evaluate_session(st, s, make_course(), now=START + timedelta(days=2))
+    assert c.key_remaining_s == pytest.approx(1200.0)
+    assert c.key_minutes_left == 20
+    assert indicators([c], make_course()).pending_key_minutes == 20
+
+
 def test_key_coverage_only_counts_key_ranges():
     s = make_session(key_ranges=[(0.0, 1000.0)])
     watch = [(500.0, 2000.0, START), (0.0, 400.0, START)]

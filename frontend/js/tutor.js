@@ -16,7 +16,14 @@ let charts = [];
 let currentKeys = null;
 
 const chip = (state, label) => `<span class="sol-chip sol-chip-${state}">${esc(label)}</span>`;
-const levelTag = alert => alert ? `<span class="sol-level sol-level-${alert.level}">Nivel ${alert.level}</span>` : '<span class="sol-muted">—</span>';
+const levelTag = alert => {
+  if (!alert) return '<span class="sol-muted">—</span>';
+  const due = alert.escalates_in_h;
+  let note = '';
+  if (alert.level === 1) note = due == null ? ' · con actividad' : due ? ` · escala en ${due} h` : ' · escala en el próximo recálculo';
+  const title = alert.level === 1 && due == null ? ' title="Tuvo actividad después del aviso: no escala por tiempo"' : '';
+  return `<span class="sol-level sol-level-${alert.level}"${title}>Nivel ${alert.level}${note}</span>`;
+};
 
 // ---------- alumnos ----------
 async function loadBoard() {
@@ -84,7 +91,7 @@ async function openStudent(userId) {
       <div class="sol-kpis" style="margin:14px 0">
         <div class="sol-kpi"><span>Asistencia efectiva</span><strong>${pct(s.effective)}</strong><small>${s.complied}/${s.dictated} dictadas</small></div>
         <div class="sol-kpi ${s.projection < s.threshold ? 'bad' : 'ok'}"><span>Proyección</span><strong>${pct(s.projection)}</strong><small>meta ${pct(s.threshold)}</small></div>
-        <div class="sol-kpi ${s.pending ? 'warn' : ''}"><span>Por recuperar</span><strong>${s.pending}</strong><small>le faltan ${s.missing}</small></div>
+        <div class="sol-kpi ${s.pending ? 'warn' : ''}"><span>Por recuperar</span><strong>${s.pending}</strong><small>${s.missing === 1 ? 'le falta 1 sesión' : `le faltan ${s.missing} sesiones`}</small></div>
         <div class="sol-kpi"><span>Última actividad</span><strong style="font-size:18px">${relativeDays(s.last_activity, board.now)}</strong><small>${fmtDateTime(s.last_activity)}</small></div>
       </div>
       <h3>Sesiones</h3>
@@ -126,10 +133,10 @@ async function loadQueue() {
     <article class="sol-queue-item">
       <div class="sol-queue-head">
         <strong>${esc(a.student.name)}</strong>${a.student.state ? chip(a.student.state, a.student.state_label) : ''}
-        <span class="sol-queue-meta"><i class="fa-regular fa-clock"></i> En cola hace ${a.hours_open >= 48 ? `${Math.round(a.hours_open / 24)} días` : `${Math.round(a.hours_open)} h`} · ${esc(a.student.email)}</span>
+        <span class="sol-queue-meta"><i class="fa-regular fa-clock"></i> En cola hace ${a.hours_open >= 48 ? plural(Math.round(a.hours_open / 24), 'día') : `${Math.round(a.hours_open)} h`} · ${esc(a.student.email)}</span>
       </div>
       <ul class="sol-reasons" style="margin-top:8px">${a.reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul>
-      <p class="sol-note">Asistencia efectiva ${pct(a.student.effective)} · proyección ${pct(a.student.projection)} · ${a.student.pending} por recuperar · le faltan ${a.student.missing} sesiones</p>
+      <p class="sol-note">Asistencia efectiva ${pct(a.student.effective)} · proyección ${pct(a.student.projection)} · ${a.student.pending} por recuperar · ${a.student.missing === 1 ? 'le falta' : 'le faltan'} ${plural(a.student.missing, 'sesión', 'sesiones')}</p>
       ${a.contacts.length ? `<ul class="sol-contacts">${a.contacts.map(c => `<li>${fmtDateTime(c.at)} · ${esc(CHANNELS[c.channel] || c.channel)} · ${c.responded ? 'respondió' : 'no respondió'}${c.result ? ` · ${esc(c.result)}` : ''}</li>`).join('')}</ul>` : ''}
       <div class="sol-queue-actions">
         <button type="button" class="sol-btn sol-btn-sm" data-contact="${a.id}" data-name="${esc(a.student.name)}"><i class="fa-solid fa-phone"></i> Registrar contacto</button>

@@ -52,6 +52,9 @@
 .sol-banner-ok { background: var(--sol-green-bg); border-color: #b9e2c8; color: #1f6e40; }
 .sol-banner-warn { background: var(--sol-amber-bg); border-color: #f0d68c; color: #7a5600; }
 .sol-banner-bad { background: var(--sol-red-bg); border-color: #f0bcbc; color: #8f2727; }
+.sol-consent-banner { margin: 0 0 16px; align-items: center; background: #f4f7fb; border-color: #d6e2ef; color: #37474f; font-size: 13px; }
+.sol-consent-banner span { flex: 1; }
+.sol-consent-banner .sol-btn { flex-shrink: 0; }
 
 /* ---------- curso: asistencia efectiva ---------- */
 .sol-attendance-box { margin-bottom: 6px; padding-top: 18px; }

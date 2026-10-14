@@ -97,8 +97,9 @@ Orden de prioridad: `inactivo` (14 días sin actividad) → `en_riesgo` → `en_
 
 ## Rescate en 2 niveles
 
-- Nivel 1: al pasar a `en_riesgo` o `inactivo`, o al quedar una sesión `por_recuperar`, se escribe en `outbox` (portal + email + WhatsApp simulados) con plantilla que menciona la clase y ~20 minutos.
+- Nivel 1: al pasar a `en_riesgo` o `inactivo`, o al quedar una sesión `por_recuperar`, se escribe en `outbox` (portal + email + WhatsApp simulados) con plantilla que menciona la clase, su plazo y los minutos de tramos clave que le quedan por ver (v2; antes decía «unos 20 minutos»).
 - Nivel 2: a las 48 h sin actividad (watch/heartbeat/quiz/chat) o al pasar a `inactivo`, o ante solicitud de retiro. Asignado a `asistente_academico`.
+- Tablero (v2): la etiqueta de una alerta de nivel 1 dice «escala en X h» mientras el alumno no tenga actividad después del aviso, o «con actividad» si ya la tuvo (entonces no escala por tiempo, solo si pasa a `inactivo`). En la demo, los 5 alumnos con nivel 1 tuvieron actividad después del aviso, así que ninguno muestra cuenta regresiva; `tests/test_alerts.py` cubre la cuenta y el escalamiento a las 48 h.
 - Cierre automático si el alumno recupera o deja de estar en riesgo; cierre manual al registrar contacto desde el tablero.
 
 ## Recálculo
@@ -109,19 +110,21 @@ Orden de prioridad: `inactivo` (14 días sin actividad) → `en_riesgo` → `en_
 
 Sin OAuth. Header `X-User-Id` (o `?uid=` para `sendBeacon`). El login ofrece «Entrar como alumno» (elige un caso `cambio_horario` con proyección bajo el umbral y 1–2 pendientes), «Entrar como tutor» (Michela) y un selector con todos los usuarios sintéticos.
 
+**Antes de un piloto con alumnos reales**, `X-User-Id` se reemplaza por autenticación real (SSO del aula virtual de DMC o sesión firmada del LMS): hoy cualquiera que conozca un id puede leer los datos de ese alumno. El control de roles (`require_tutor`) ya está centralizado en `deps.py`, así que el cambio se limita a `current_user`.
+
 ## Cohorte sintética
 
 30 alumnos × 52 sesiones, 5 perfiles (`estable`, `mala_conexion`, `cambio_horario`, `desinteres`, `adaptado`) en `ground_truth.csv`. Una fracción de `cambio_horario` recupera **después** del plazo de 7 días para ejercitar el caso «fuera de plazo» del criterio 12. Verificación: `scripts/check_attendance.py`.
 
 ## Tensión de los «20 minutos»
 
-Los tramos clave de la sesión de muestra suman ~83 min (46 % de 3 h). Con el interruptor «Reproducir solo tramos clave» y velocidad 5×–10× en el reproductor de transcripción, la recuperación cabe en ~10–20 minutos de reloj; a 1× no. Queda documentado como límite de la sesión de muestra: cuando haya video y tramos validados por el docente, el tiempo real bajará.
+Los tramos clave de la sesión de muestra suman ~83 min (46 % de 3 h) y los de la sesión real, ~77 min (37 % de 3 h 30 min). Recuperar una clase en «unos 20 minutos» no era cierto a velocidad normal, así que en v2 se eliminó esa promesa (`RECOVERY_MINUTES_HINT`): avisos, «Mi avance», el chat de plataforma y la oferta de la baja asistida muestran los **minutos de tramos clave que le quedan** al alumno (duración de los tramos menos lo ya visto) y su equivalente a 1.5×, más el quiz. Por ejemplo, Plinio ve «te faltan ~160 min de tramos clave (~107 min a 1.5×)» para sus 2 clases pendientes. El tablero sigue avisando si los tramos clave superan el 40 % de la clase.
 
 ## Datos y secretos
 
 - Grabaciones, exportaciones Zoom, cohorte generada y `*.db` viven bajo `backend/data/` y están en `.gitignore` (excepto `data/sample/`).
 - `backend/.env` no se versiona; plantilla en `.env.example`.
-- Consentimiento (Ley 29733) versionado (`CONSENT_VERSION`); el modal aparece a los alumnos hasta que aceptan.
+- Consentimiento (Ley 29733) versionado (`CONSENT_VERSION`); el modal aparece a los alumnos hasta que aceptan. «Más tarde» se guarda en `sessionStorage` (por usuario), así el modal no reaparece en cada página de esa pestaña; mientras no acepte, «Mi avance» muestra un aviso discreto con «Revisar y aceptar».
 
 ## Despliegue en Vercel
 

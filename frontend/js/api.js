@@ -98,6 +98,7 @@ export function tsToSeconds(a, b, c) {
 export function plural(n, one, many = `${one}s`) {
   return `${n} ${n === 1 ? one : many}`;
 }
+export const keyTime = minutes => `~${minutes} min de tramos clave (~${Math.ceil(minutes / 1.5)} min a 1.5×)`;
 
 export function linkTimestamps(html) {
   return html.replace(TS, (m, a, b, c) => `<button type="button" class="sol-ts" data-seek="${tsToSeconds(a, b, c)}">${m.slice(1, -1)}</button>`);

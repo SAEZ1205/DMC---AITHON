@@ -97,7 +97,6 @@ STUDY_HOUR_WINDOW_DAYS = 28
 
 # --- Rescate ---
 ESCALATION_HOURS = 48
-RECOVERY_MINUTES_HINT = 20
 
 # --- Micro-preguntas ---
 MICRO_EVERY_DAYS = 14

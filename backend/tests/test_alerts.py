@@ -58,7 +58,12 @@ def test_level1_alert_creates_outbox_messages(db):
     assert alert.level == 1 and alert.escalated_at is None
     messages = db.exec(select(Outbox).where(Outbox.alert_id == alert.id)).all()
     assert {m.channel for m in messages} == {"portal", "email", "whatsapp"}
-    assert "por recuperar" in messages[0].text and "20 minutos" in messages[0].text
+    # sesiones sin capítulos: el tramo clave es la clase completa (3 h) y el alumno no vio nada
+    pending = statuses[d["student"].id].indicators.pending_items
+    minutes = len(pending) * 180
+    assert "por recuperar" in messages[0].text
+    assert f"~{minutes} min de tramos clave (~{minutes * 2 // 3} min a 1.5×)" in messages[0].text
+    assert "20 minutos" not in messages[0].text
 
 
 def test_escalates_to_level2_after_48h_without_activity(db):
@@ -72,6 +77,20 @@ def test_escalates_to_level2_after_48h_without_activity(db):
     assert alert.level == 2
     assert alert.assigned_role == "asistente_academico"
     assert alert.escalated_at == t0 + timedelta(hours=49)
+
+
+def test_board_shows_hours_until_escalation(db):
+    d = seed(db)
+    course_id, uid, t0 = d["course"].id, d["student"].id, d["t0"]
+    recompute_course(db, course_id, t0)
+    config.set_now(t0 + timedelta(hours=10))
+    with TestClient(app) as client:
+        board = client.get(f"/api/tutor/courses/{course_id}/students", headers={"X-User-Id": str(d["aa"].id)}).json()
+        info = client.get(f"/api/courses/{course_id}", headers={"X-User-Id": str(uid)}).json()
+    row = next(r for r in board["students"] if r["user_id"] == uid)
+    assert row["alert"]["level"] == 1 and row["alert"]["escalates_in_h"] == 38
+    assert info["days"] == "mar/jue" and info["teacher"] is None and info["academic_assistant"] == "Michela López"
+    assert info["start_text"].endswith(f", {d['course'].start_date.year}")
 
 
 def test_new_activity_prevents_escalation(db):

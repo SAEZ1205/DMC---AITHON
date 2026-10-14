@@ -1,6 +1,7 @@
 """Utilidades de texto: marcas de tiempo, fechas en español y búsqueda BM25 en la transcripción."""
 from __future__ import annotations
 
+import math
 import re
 import unicodedata
 from datetime import datetime
@@ -38,6 +39,18 @@ def parse_citations(text: str) -> list[int]:
 
 def fecha_larga(value: datetime) -> str:
     return f"{DAYS[value.weekday()]} {value.day} de {MONTHS[value.month - 1]}"
+
+
+def plural(n: int, one: str, many: str | None = None) -> str:
+    return f"{n} {one if n == 1 else (many or one + 's')}"
+
+
+RECOVERY_SPEED = 1.5
+
+
+def key_time(minutes: int) -> str:
+    """«~77 min de tramos clave (~52 min a 1.5×)»."""
+    return f"~{minutes} min de tramos clave (~{math.ceil(minutes / RECOVERY_SPEED)} min a {RECOVERY_SPEED:g}×)"
 
 
 def fecha_corta(value: datetime) -> str:

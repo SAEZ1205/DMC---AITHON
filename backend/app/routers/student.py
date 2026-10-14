@@ -18,6 +18,7 @@ from ..services import alerts
 from ..services.attendance import certification
 from ..services.chat import classify_micro
 from ..services.recompute import compute_course, recompute_course
+from ..services.text import fecha_larga
 from ..views import STATUS_LABELS, compliance_json, indicators_json, iso
 
 router = APIRouter(tags=["alumno"])
@@ -39,6 +40,20 @@ def my_courses(user: User = Depends(current_user), db: Session = Depends(get_db)
         _, st = _student_status(db, c.id, user)
         out.append({"id": c.id, "name": c.name, "schedule": c.schedule, **indicators_json(st.indicators)})
     return out
+
+
+@router.get("/courses/{course_id}")
+def course_detail(course_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
+    course = get_course(db, course_id)
+    teacher = db.get(User, course.teacher_id) if course.teacher_id else None
+    assistant = db.get(User, course.academic_assistant_id) if course.academic_assistant_id else None
+    days, _, hours = course.schedule.partition(", ")
+    return {"id": course.id, "name": course.name, "start_date": course.start_date.isoformat(),
+            "end_date": course.end_date.isoformat(),
+            "start_text": f"{fecha_larga(course.start_date)}, {course.start_date.year}",
+            "end_text": f"{fecha_larga(course.end_date)}, {course.end_date.year}",
+            "schedule": course.schedule, "days": days, "hours": hours, "total_sessions": course.total_sessions,
+            "teacher": teacher.name if teacher else None, "academic_assistant": assistant.name if assistant else None}
 
 
 @router.get("/courses/{course_id}/progress")

@@ -40,7 +40,8 @@ def test_platform_answer_uses_real_data_without_llm(db, monkeypatch):
         res = client.post(f"/api/sessions/{sid}/chat", headers=headers, json={"message": "¿Cuándo vence la sesión?"}).json()
         assert res["route"] == "plataforma" and res["citations"] == []
         assert "La sesión 1 vence el martes 13 de octubre" in res["answer"]
-        assert "Te faltan los tramos clave (0 % visto) y el quiz." in res["answer"]
+        assert "Te faltan ~110 min de tramos clave (~74 min a 1.5×); llevas 0 % visto, y el quiz." in res["answer"]
+        assert "0 de 1 sesión dictada" in res["answer"]
         assert res["link"]["href"] == "progress.html"
 
         client.post("/api/watch", headers=headers, json={"session_id": sid, "ranges": [[600, 3600], [7200, 10800]]})
