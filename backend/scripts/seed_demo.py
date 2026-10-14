@@ -67,7 +67,7 @@ def ensure_env() -> None:
     env, example = BACKEND / ".env", BACKEND / ".env.example"
     if not env.exists() and example.exists():
         shutil.copy(example, env)
-        print("Se creó backend/.env a partir de .env.example (agrega tu LLM_API_KEY para usar Kimi).")
+        print("Se creó backend/.env a partir de .env.example (agrega tu LLM_API_KEY de Groq para usar el LLM).")
 
 
 def main() -> None:

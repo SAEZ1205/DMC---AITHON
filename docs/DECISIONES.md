@@ -28,7 +28,7 @@ Referencia: [`SOLUCION_DMC_CURSOR.md`](SOLUCION_DMC_CURSOR.md) (v1) y [`SOLUCION
 - **Sesiones de muestra:** su banco de la referencia carga aprobado y con fuente «docente», para que el historial de la cohorte siga igual.
 - La explicación completa se muestra cuando el alumno aprueba en ese intento o ya había aprobado antes; si no, cada pregunta fallada muestra solo «Revisa el minuto [mm:ss] (diapositiva n)».
 - Editar una pregunta ya aprobada la mantiene aprobada y actualiza quién y cuándo la aprobó. No existe «aprobar todas».
-- En modo simulado, «Proponer preguntas» arma borradores con las viñetas de las diapositivas de cada tramo clave sin preguntas; «Sugerir alternativas» toma viñetas de otros capítulos y «Revisar redacción» aplica reglas fijas (alternativas repetidas, correcta mucho más larga, negaciones, palabras de la respuesta en el enunciado). Con Kimi, las tres usan `prompts/quiz_assist.md`.
+- En modo simulado, «Proponer preguntas» arma borradores con las viñetas de las diapositivas de cada tramo clave sin preguntas; «Sugerir alternativas» toma viñetas de otros capítulos y «Revisar redacción» aplica reglas fijas (alternativas repetidas, correcta mucho más larga, negaciones, palabras de la respuesta en el enunciado). Con el LLM (Groq), las tres usan `prompts/quiz_assist.md` y, si el LLM no responde o no hay cupo, caen a esa misma versión simulada.
 
 ## Chat: ruteo sin LLM
 
@@ -43,7 +43,7 @@ Referencia: [`SOLUCION_DMC_CURSOR.md`](SOLUCION_DMC_CURSOR.md) (v1) y [`SOLUCION
 - **Minuto citado:** ventanas de 20 s antes y 45 s después de cada candidato; puntaje = densidad BM25 × (0.5 + cobertura), ×1.5 si hay señal de definición («es un», «significa»…) y ×2 si repite la frase preguntada. Entre las ventanas con al menos el 75 % del mejor puntaje gana la más temprana (el docente suele definir antes de usar). Se prefiere el capítulo cercano a la diapositiva encontrada si su cobertura no es peor.
 - **Fuera de la clase:** si la cobertura de la pregunta en la ventana más las 4 mejores diapositivas no llega a 0.6, se responde la frase fija «Eso no se vio en esta clase…» sin abrir hilo ni llamar al LLM.
 - **Protección del quiz:** si la pregunta se parece (≥ 0.5, BM25 normalizado, con la transcripción como fondo) a una pregunta aprobada del quiz y el alumno aún no lo aprueba, el hilo queda topado en nivel 2. Además, si la respuesta contiene la alternativa correcta se reemplaza por una respuesta segura. Al aprobar el quiz el tope desaparece.
-- **Límites:** 90 palabras (se recorta conservando la pregunta final); historial de 6 turnos.
+- **Límites:** 90 palabras (se recorta conservando la pregunta final); el LLM ve los últimos 4 mensajes del hilo.
 - **Mock:** textos deterministas por nivel a partir de la evidencia (cita, viñetas de la diapositiva, frase de la transcripción). La evaluación simulada del intento compara términos del intento con la evidencia.
 - **Uso del LLM:** solo tutor, micro-preguntas y asistencia del quiz. `llm.track()` cuenta llamadas (también en mock) y `eval_chat.py` las imprime.
 - **Evaluación** (`scripts/eval_chat.py`, sesión 23, copia de la base): minuto a ±90 s **16/20**, primer turno con pregunta y ≤ 90 palabras **20/20**, quiz revelado **0/5**, fuera de la clase **5/5**. Las heurísticas se ajustaron mirando estas mismas 20 preguntas, así que 16/20 es optimista; hace falta un set nuevo de preguntas reales de alumnos para medirlo sin sesgo. El minuto esperado de «¿Qué es un RPA?» es 24:30, donde el docente lo define.
@@ -68,13 +68,23 @@ Valor de demo: `2026-10-12T19:00:00` (sesión 24 recién dictada; plazos de las 
 - El tablero `/tutor.html` y los endpoints `/api/tutor/*` exigen rol en `{tutor, asistente_academico, docente, coordinador}`.
 - «Entrar como tutor» en el login de demo entra como Michela (Asistente Académica), porque es quien recibe la cola de nivel 2.
 
-## LLM (Kimi / Moonshot)
+## LLM (Groq · openai/gpt-oss-120b)
 
-- Cliente OpenAI-compatible contra `LLM_BASE_URL` (por defecto `https://api.moonshot.ai/v1`).
-- Modelos: `LLM_MODEL_CHAT` y `LLM_MODEL_FAST` = `kimi-k2.6` (verificar en la consola de Moonshot el nombre exacto habilitado para la cuenta).
+- Proveedor: **Groq**, plan gratuito, modelo `openai/gpt-oss-120b` (reemplaza a Kimi). Cliente OpenAI-compatible contra `LLM_BASE_URL` (`https://api.groq.com/openai/v1`); cambiar de proveedor sigue siendo solo configuración.
+- La key va en `backend/.env` (local) y en la variable secreta `LLM_API_KEY` de Vercel (Producción). Nunca en Git.
 - `LLM_MOCK=1`, o una API key vacía / `...`, activa respuestas simuladas (sin costo). Pytest fuerza mock.
-- Prompts en español en `backend/app/prompts/`. Salida JSON validada con Pydantic y un reintento.
-- Chat (v2): el contexto del tutor son los 10 fragmentos y las 4 diapositivas más relevantes según BM25, no la transcripción completa (ver «Chat tutor»). Con key real hay que volver a correr `scripts/eval_chat.py`.
+- Prompts en español en `backend/app/prompts/`. Salida en modo JSON validada con Pydantic y un reintento. `reasoning_effort=low` y `include_reasoning=false`: gpt-oss razona antes de responder y esos tokens cuentan en el cupo.
+- **Cupo del plan gratuito:** 30 solicitudes/min, 1.000/día, 8.000 tokens/min y 200.000/día. El límite que manda es el de tokens por minuto: un turno del tutor gasta ~1.500–2.000 tokens.
+- **Para que la demo no se caiga** (`services/llm.py`):
+  - Control de cupo propio al 85 % de cada límite. Los tokens por minuto se modelan como un balde que se recarga de forma continua (como Groq); se reserva prompt estimado + `max_tokens` y se ajusta con los tokens reales y con `x-ratelimit-remaining-tokens`.
+  - `max_tokens` por tipo de salida (tutor 1024, micro 400, propuesta de quiz 3000, alternativas 800, revisión 1000), timeout de 25 s y sin reintentos automáticos del SDK.
+  - Sin cupo en 4 s, ante un 429 (pausa lo que diga `retry-after`) o ante error/timeout, el servicio responde con su simulación. El tutor, las micro-preguntas y las tres acciones del quiz ya no devuelven 502.
+  - Responder un intento hace **una** llamada (evaluación + ayuda del nivel siguiente); antes eran dos.
+  - Contexto del tutor recortado a 6 fragmentos (los más cercanos al minuto citado), 3 diapositivas de 50 palabras y 4 mensajes de historial: ~1K tokens.
+  - Caché de respuestas validadas por prompt exacto (6 h, 256 entradas).
+  - `GET /api/admin/llm` (staff) muestra modo, cupo, uso del día y respuestas que salieron de la simulación.
+- **Límite conocido:** el control de cupo es por instancia; con varias instancias de Vercel los encabezados de Groq lo corrigen y el 429 queda como red de seguridad. Con muchas personas usando el chat al mismo tiempo, parte de las respuestas saldrá de la simulación (sin errores).
+- Prueba con la key real (sesión 23, servidor local): pregunta → pista → intento incorrecto → intento correcto, 4 respuestas del modelo en ~3 s cada una, 0 respuestas simuladas, el intento correcto evaluado «correcta». `eval_chat.py` con el modelo real queda pendiente: gastaría ~30 llamadas del cupo diario.
 
 ## Sesión de muestra y video
 

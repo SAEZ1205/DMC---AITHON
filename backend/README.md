@@ -25,9 +25,13 @@ Edita `backend/.env`:
 
 | Variable | Uso |
 |---|---|
-| `LLM_API_KEY` | Key de Kimi. Déjala en `...` o vacía para modo mock. |
-| `LLM_BASE_URL` | Por defecto `https://api.moonshot.ai/v1`. |
-| `LLM_MODEL_CHAT` / `LLM_MODEL_FAST` | Por defecto `kimi-k2.6` (confirma el nombre en tu cuenta). |
+| `LLM_API_KEY` | Key de Groq (`gsk_…`, en https://console.groq.com/keys). Déjala en `...` o vacía para modo mock. |
+| `LLM_BASE_URL` | Por defecto `https://api.groq.com/openai/v1`. |
+| `LLM_MODEL_CHAT` / `LLM_MODEL_FAST` | Por defecto `openai/gpt-oss-120b`. |
+| `LLM_REASONING_EFFORT` | `low` (por defecto): el razonamiento de gpt-oss cuenta como tokens del cupo. |
+| `LLM_RPM` / `LLM_RPD` / `LLM_TPM` / `LLM_TPD` | Cupo del proveedor. Por defecto el plan gratuito de Groq para gpt-oss-120b: 30 / 1000 / 8000 / 200000. |
+| `LLM_SAFETY` | Fracción del cupo que usa la app (0.85). |
+| `LLM_MAX_WAIT_S` | Segundos que una solicitud espera cupo antes de responder con la simulación (4). |
 | `LLM_MOCK` | `1` fuerza mock aunque haya key. |
 | `SIM_NOW` | Reloj de la demo (`2026-10-12T19:00:00`). Vacío = hora real. |
 | `DISABLE_SCHEDULER` | `1` desactiva el recálculo horario (útil en desarrollo). |
@@ -64,6 +68,24 @@ python scripts/process_session.py --all      # todas
 
 Si existe `data/zoom/<session_id>/` se ingesta primero (participantes, chat, transcripción, video y, con `transcript.txt` o `materials/`, el contenido real). Luego se recalculan capítulos (diapositivas + TextTiling), tramos clave y el borrador inicial del quiz; los capítulos quedan sin validar. El LLM solo se usa en línea: tutor del chat, micro-preguntas y «Sugerir preguntas» del quiz.
 
+## LLM (Groq) y su cupo
+
+El tutor del chat, las micro-preguntas y el asistente del quiz usan `openai/gpt-oss-120b` en Groq. El plan gratuito permite 30 solicitudes y 8.000 tokens por minuto, y 1.000 solicitudes y 200.000 tokens por día. Un turno del tutor gasta ~1.500–2.000 tokens: unos 4 turnos seguidos y luego uno cada ~15 s.
+
+Para que la demo no se caiga:
+
+- Cada llamada reserva cupo antes de salir (85 % de cada límite; los tokens se recargan de forma continua, como en Groq) y se ajusta con los encabezados `x-ratelimit-*` de la respuesta.
+- Si no hay cupo en 4 s, o Groq responde 429 (la app se pausa lo que indique `retry-after`), o hay un error o timeout (25 s), el servicio responde al instante con su **simulación** (la misma lógica del modo mock). El alumno nunca ve un error.
+- Responder un intento usa una sola llamada (evalúa y sigue con el nivel siguiente) y el prompt del tutor lleva ~1K tokens de contexto.
+- Las respuestas validadas se guardan en caché 6 h por prompt exacto: repetir la pregunta de la demo no gasta cupo.
+- Estado en vivo (staff): `GET /api/admin/llm` → modo, cupo disponible del minuto, uso del día y veces que se respondió con la simulación.
+
+```powershell
+curl.exe https://dmc-aithon.vercel.app/api/admin/llm -H "X-User-Id: 2"
+```
+
+El control de cupo vive en cada instancia; con varias instancias en Vercel los encabezados de Groq (que cuentan a toda la organización) lo corrigen y el 429 queda como red de seguridad. `eval_chat.py` con la key real gasta cupo: córrelo con `LLM_MOCK=1` salvo que quieras medir el modelo.
+
 ## Arrancar
 
 ```powershell
@@ -89,7 +111,7 @@ Metas (sección 12 de la especificación):
 
 | Criterio | Cómo se verifica |
 |---|---|
-| Pytest | `pytest` → 81 tests |
+| Pytest | `pytest` → 90 tests |
 | Diagnóstico | `evaluate.py`: recall ≥ 80 % (≥ 14 días), falsas alarmas ≤ 20 %, adaptados no en riesgo |
 | Asistencia efectiva | `check_attendance.py`: 5 perfiles + 1 recuperación fuera de plazo coinciden con el motor |
 | Chat tutor | `eval_chat.py`: minuto citado a ±90 s ≥ 16/20, primer turno con pregunta y ≤ 90 palabras 20/20, quiz revelado 0/5, fuera de la clase 5/5 (mock: 16 · 20 · 0 · 5) |
@@ -130,7 +152,7 @@ Demo pública: **https://dmc-aithon.vercel.app** (proyecto `dmc-aithon`, despleg
 - **Volver al estado inicial:** `POST /api/admin/reset-demo` con un usuario staff (p. ej. `X-User-Id` de Michela). Recrea las tablas y copia la base de demo del despliegue en ~2 s. Hazlo **después de cada despliegue** con cambios de datos o de modelos, y antes de presentar.
 - **Sesión real en la demo publicada:** `.vercelignore` deja subir `backend/data/zoom/23/` (transcripción, materiales y quiz; nunca el video) para que el build la cargue. Esos archivos van al despliegue, no a Git, así que solo se puede redesplegar desde una máquina que los tenga. Sin video en Vercel: la sesión 23 usa el reproductor de transcripción.
 - El recálculo horario (APScheduler) se desactiva en Vercel.
-- Variables: `SIM_NOW` y `DATABASE_URL` (Neon) en Producción. Para usar Kimi, agrega `LLM_API_KEY` con `vercel env add LLM_API_KEY production` y vuelve a desplegar.
+- Variables en Producción: `SIM_NOW`, `DATABASE_URL` (Neon) y `LLM_API_KEY` (Groq, tipo secreto; el resto de `LLM_*` usa los valores por defecto). Para cambiar la key: `vercel env rm LLM_API_KEY production`, `vercel env add LLM_API_KEY production` y volver a desplegar. El build siempre siembra con `LLM_MOCK=1`.
 
 Redesplegar y reiniciar la demo (desde la raíz del repo, en la rama `mateo`):
 
@@ -160,4 +182,4 @@ backend/
 
 - Todo el trabajo de este MVP está en la rama `mateo`. No hacer push a `main`.
 - No subir `.env`, `*.db` ni grabaciones/transcripciones fuera de `data/sample/`.
-- Alternativas de LLM (Groq, Gemini, OpenRouter): cambiar solo `LLM_BASE_URL` + key + modelo en `.env`.
+- Otros proveedores compatibles con OpenAI (Kimi, Gemini, OpenRouter): cambiar `LLM_BASE_URL`, key, modelo y el cupo `LLM_RPM/RPD/TPM/TPD` en `.env`.
