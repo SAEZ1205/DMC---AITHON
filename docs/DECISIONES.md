@@ -1,6 +1,17 @@
 # Decisiones del MVP (rama `mateo`)
 
-Referencia: [`SOLUCION_DMC_CURSOR.md`](SOLUCION_DMC_CURSOR.md). Este documento registra las elecciones que no salen literalmente de la especificación o que conviene dejar explícitas para la demo y el mantenimiento.
+Referencia: [`SOLUCION_DMC_CURSOR.md`](SOLUCION_DMC_CURSOR.md) (v1) y [`SOLUCION_DMC_CURSOR_V2.md`](SOLUCION_DMC_CURSOR_V2.md) (v2). Este documento registra las elecciones que no salen literalmente de la especificación o que conviene dejar explícitas para la demo y el mantenimiento.
+
+# Versión 2
+
+## Sesión real de prueba
+
+- Los archivos de la sesión real (video, `TRANSCRIPCION.txt` y materiales del docente) viven fuera del repositorio, en `propuesta/Sesion 01`. `scripts/ingest_real_session.py "<carpeta>" --session 23` los normaliza en `backend/data/zoom/23/` (ignorado por Git).
+- **Ubicación en la demo:** el contenido real se carga en la **sesión 23** del curso de demo, la que el alumno «cambio_horario» tiene pendiente de recuperar en el mes 3 (vence el martes 13 de octubre), con su título real. Las diapositivas dicen «Sesión 01» porque es la primera clase de la edición real; se aceptó esa diferencia para que todos los casos de la demo (recuperación, chat, quiz, tablero) usen la misma sesión real. Las demás sesiones conservan el contenido de muestra con el título «Sesión N – contenido de muestra».
+- **Duración:** la sesión 23 dura lo que dura la grabación real (~3 h 30 min) en lugar de las 3 h del horario.
+- **Video:** no se copia (632 MB): `metadata.json` guarda la ruta local y el backend lo sirve en `/media/23.mp4` con rangos HTTP. Sin Vercel Blob, la demo publicada no tiene video y usa el reproductor de transcripción con el texto real.
+- **Transcripción:** el `.txt` real trae una línea de tiempo (`m:ss` o `h:mm:ss`) seguida del texto, sin nombre del hablante, en el 100 % de los bloques; por eso no hizo falta alinear con Whisper. `scripts/align_transcript.py` queda para sesiones futuras sin marcas de tiempo.
+- **Diapositivas de logística:** docente, perfil, acuerdos, agenda y «gracias» nunca son tramo clave.
 
 ## Reloj simulado
 
