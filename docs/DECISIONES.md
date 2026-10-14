@@ -128,7 +128,14 @@ Los tramos clave de la sesión de muestra suman ~83 min (46 % de 3 h) y los de l
 
 ## Despliegue en Vercel
 
-Se optó por un **snapshot SQLite** en lugar de una base gestionada: el build genera la base de demo y cada instancia la copia a `/tmp` al arrancar. Ventajas: cero servicios externos y costo nulo, y la demo se reinicia sola. Límites: los cambios no persisten entre instancias ni tras inactividad. Si el MVP pasa a piloto real, migrar a Postgres (Neon vía Vercel Marketplace) y reemplazar APScheduler por Vercel Cron sobre `/api/admin/recompute`. El proyecto se despliega con la CLI (sin integración Git) para no disparar despliegues desde otras ramas del repositorio compartido.
+**v1:** snapshot SQLite copiado a `/tmp` en cada instancia (cero servicios externos, pero los cambios no persistían entre instancias ni tras inactividad). El proyecto se despliega con la CLI (sin integración Git) para no disparar despliegues desde otras ramas del repositorio compartido.
+
+**v2 – Persistencia con Postgres (Neon):**
+
+- Si `DATABASE_URL` es Postgres (`postgres://` o `postgresql://`, la que deja la integración de Neon), el backend usa psycopg 3 con `pool_pre_ping`, un pool chico por instancia y reciclaje a los 5 min (Neon corta conexiones inactivas). Sin `DATABASE_URL`, todo sigue en SQLite como antes; los tests siempre usan SQLite.
+- El build sigue generando la base de demo en SQLite con `seed_demo.py` (es el «snapshot») y, si Postgres está vacío, la copia con `scripts/load_snapshot.py`: una sola transacción con candado de Postgres (`pg_advisory_xact_lock`), inserción por lotes y ajuste de las secuencias de `id`. El arranque de la función repite la verificación «si está vacía, copiar», por si el build no tuvo acceso a la base.
+- `POST /api/admin/reset-demo` (solo staff) borra y recrea las tablas y vuelve a copiar el snapshot del despliegue, todo en la misma transacción (en Postgres el DDL es transaccional): deja la demo en el estado inicial, incluida la sesión real, y de paso aplica cambios de esquema entre versiones. Por eso, después de cada despliegue con cambios de modelo se llama a `reset-demo` (o `load_snapshot.py --force`); la copia «si está vacía» no altera tablas existentes.
+- APScheduler sigue desactivado en Vercel; para un piloto, reemplazarlo por Vercel Cron sobre `/api/admin/recompute`.
 
 ## Alcance fuera del MVP
 

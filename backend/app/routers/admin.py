@@ -10,10 +10,10 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from .. import config
-from ..db import get_db
+from ..db import engine, get_db
 from ..deps import get_session_or_404, require_tutor
 from ..models import Course
-from ..services import content
+from ..services import content, snapshot, tutor_chat
 from ..services.real_session import apply_to_session, has_real_content
 from ..services.recompute import recompute_course
 from ..services.zoom_ingest import ingest_session
@@ -52,6 +52,20 @@ def recompute(body: RecomputeIn | None = None, db: Session = Depends(get_db)) ->
         statuses = recompute_course(db, course.id, body.now)
         out[course.id] = dict(Counter(st.risk.state for st in statuses.values()))
     return {"now": (body.now or config.now()).isoformat(), "courses": out}
+
+
+@router.post("/reset-demo")
+def reset_demo(db: Session = Depends(get_db)) -> dict:
+    """Vuelve la demo al estado inicial copiando otra vez la base generada en el build."""
+    if not config.DB_SNAPSHOT:
+        raise HTTPException(400, "En local con SQLite, vuelve a correr scripts/seed_demo.py con el servidor detenido.")
+    db.close()  # la sesión de la autenticación leyó «user»: en Postgres ese candado bloquearía el DROP TABLE
+    try:
+        result = snapshot.copy_snapshot(engine, force=True)
+    except snapshot.SnapshotError as e:
+        raise HTTPException(400, str(e)) from e
+    tutor_chat.clear_cache()
+    return result
 
 
 class ClockIn(BaseModel):

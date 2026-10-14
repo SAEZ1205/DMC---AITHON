@@ -15,6 +15,7 @@ from . import config
 from .db import engine, init_db
 from .models import ClassSession
 from .routers import admin, auth, sessions, student, tutor
+from .services.snapshot import copy_snapshot
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("dmc")
@@ -23,6 +24,11 @@ log = logging.getLogger("dmc")
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
+    if not config.IS_SQLITE and config.DB_SNAPSHOT and config.DB_SNAPSHOT.exists():
+        try:
+            log.info("Base de demo: %s", copy_snapshot(engine))
+        except Exception:  # la API sigue arriba; reset-demo permite reintentar
+            log.exception("No se pudo copiar la base de demo a Postgres")
     scheduler = None
     if config.SCHEDULER_ENABLED:
         from .services.scheduler import start_scheduler

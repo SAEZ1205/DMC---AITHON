@@ -1,7 +1,8 @@
-"""Build de Vercel: genera la base de demostración que el despliegue copia a /tmp al arrancar.
+"""Build de Vercel: genera la base de demostración (snapshot) y, con Postgres, la carga si está vacía.
 
 Corre seed_demo.py contra backend/data/dmc.db con el reloj de la demo y deja el archivo autocontenido
-(sin -wal) para poder abrirlo en modo inmutable desde el bundle de solo lectura.
+(sin -wal) para poder abrirlo en modo inmutable desde el bundle de solo lectura. Si DATABASE_URL es
+Postgres (Neon), copia el snapshot allí cuando no tiene datos; si no, la función lo copia a /tmp.
 """
 from __future__ import annotations
 
@@ -34,6 +35,12 @@ def main() -> None:
     con.execute("VACUUM")
     con.close()
     print(f"Base de demo lista: {DB_PATH} ({DB_PATH.stat().st_size // 1024} KB)")
+
+    if os.getenv("DATABASE_URL", "").startswith(("postgres://", "postgresql://")):
+        subprocess.run([sys.executable, str(BACKEND_DIR / "scripts" / "load_snapshot.py")],
+                       env={**os.environ, "PYTHONIOENCODING": "utf-8"}, check=True)
+    else:
+        print("Sin Postgres: la función copiará la base a /tmp al arrancar.")
 
 
 if __name__ == "__main__":

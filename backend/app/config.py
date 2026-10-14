@@ -19,13 +19,25 @@ SAMPLE_DIR = DATA_DIR / "sample"
 SAMPLE_SESSION_DIR = SAMPLE_DIR / "session_demo"
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
-# En Vercel el bundle es de solo lectura: la base generada en el build se copia a /tmp al arrancar
-# (los cambios duran mientras viva la instancia).
+# Base de trabajo: Postgres si DATABASE_URL lo indica (Neon en Vercel); si no, SQLite.
+# El build genera la base de demo en data/dmc.db (snapshot). Con Postgres se copia allí si está vacía
+# (y con POST /api/admin/reset-demo); en Vercel sin Postgres se copia a /tmp y dura lo que la instancia.
 ON_VERCEL = bool(os.getenv("VERCEL"))
-DB_SNAPSHOT = DATA_DIR / "dmc.db" if ON_VERCEL else None
-DATABASE_URL = os.getenv("DATABASE_URL") or (
-    "sqlite:////tmp/dmc.db" if ON_VERCEL else f"sqlite:///{(DATA_DIR / 'dmc.db').as_posix()}"
-)
+SQLITE_FILE = DATA_DIR / "dmc.db"
+
+
+def _normalize_db_url(url: str) -> str:
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url.removeprefix(prefix)
+    return url
+
+
+DATABASE_URL = _normalize_db_url(os.getenv("DATABASE_URL") or (
+    "sqlite:////tmp/dmc.db" if ON_VERCEL else f"sqlite:///{SQLITE_FILE.as_posix()}"
+))
+IS_SQLITE = DATABASE_URL.startswith("sqlite")
+DB_SNAPSHOT = SQLITE_FILE if ON_VERCEL or not IS_SQLITE else None
 
 # --- LLM (proveedor compatible con OpenAI; Kimi por defecto) ---
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.moonshot.ai/v1")

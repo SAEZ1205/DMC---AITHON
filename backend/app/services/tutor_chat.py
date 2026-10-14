@@ -125,6 +125,10 @@ class Corpus:
 _CORPUS: dict[tuple, Corpus] = {}
 
 
+def clear_cache() -> None:
+    _CORPUS.clear()
+
+
 def corpus_of(db: Session, session: ClassSession) -> Corpus:
     segments = db.exec(select(TranscriptSegment).where(TranscriptSegment.session_id == session.id)
                        .order_by(TranscriptSegment.start)).all()

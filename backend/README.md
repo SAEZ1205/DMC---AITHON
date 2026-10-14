@@ -31,6 +31,7 @@ Edita `backend/.env`:
 | `LLM_MOCK` | `1` fuerza mock aunque haya key. |
 | `SIM_NOW` | Reloj de la demo (`2026-10-12T19:00:00`). Vacío = hora real. |
 | `DISABLE_SCHEDULER` | `1` desactiva el recálculo horario (útil en desarrollo). |
+| `DATABASE_URL` | Vacío = SQLite en `data/dmc.db`. Con `postgres://…` (Neon) usa Postgres; cárgale la demo con `python scripts/load_snapshot.py` después de correr `seed_demo.py` sin esta variable. |
 
 ## Base de datos de demo
 

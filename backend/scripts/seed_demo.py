@@ -53,6 +53,9 @@ REAL_QUESTIONS = [  # preguntas simuladas de la cohorte sobre la sesión real
 
 
 def reset_database() -> None:
+    if not config.IS_SQLITE:
+        sys.exit("seed_demo.py genera la base SQLite de demo. Quita DATABASE_URL (Postgres) para correrlo y luego "
+                 "cárgala con scripts/load_snapshot.py.")
     db_path = Path(config.DATABASE_URL.replace("sqlite:///", ""))
     for suffix in ("", "-wal", "-shm"):
         target = Path(str(db_path) + suffix)

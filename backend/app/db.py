@@ -30,16 +30,24 @@ def _restore_snapshot() -> None:
     dst.close()
 
 
+def make_engine(url: str):
+    if url.startswith("sqlite"):
+        eng = create_engine(url, connect_args={"check_same_thread": False})
+
+        @event.listens_for(eng, "connect")
+        def _sqlite_pragmas(dbapi_connection, _record):
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+
+        return eng
+    # Postgres serverless (Neon): conexiones que se cortan por inactividad; pool chico por instancia.
+    return create_engine(url, pool_pre_ping=True, pool_size=3, max_overflow=2, pool_recycle=300)
+
+
 _restore_snapshot()
-engine = create_engine(config.DATABASE_URL, connect_args={"check_same_thread": False})
-
-
-@event.listens_for(engine, "connect")
-def _sqlite_pragmas(dbapi_connection, _record):
-    cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA journal_mode=WAL")
-    cursor.execute("PRAGMA foreign_keys=ON")
-    cursor.close()
+engine = make_engine(config.DATABASE_URL)
 
 
 def init_db(target_engine=None) -> None:
