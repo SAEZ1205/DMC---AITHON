@@ -70,6 +70,7 @@ def build_chapters(db: Session, session: ClassSession) -> list[dict]:
 
 def rebuild(db: Session, session: ClassSession) -> dict:
     reference = reference_of(session)
+    segments_of(db, session)
     if reference:
         drafts = [{**c, "source": "muestra", "logistics": not c["is_key"] and bool(
                    set(chaptering.tokens(c["title"])) & (chaptering.LOGISTICS_WORDS | {"logistica", "cierre"}))}
@@ -80,7 +81,6 @@ def rebuild(db: Session, session: ClassSession) -> dict:
         summary.text = reference.get("summary", "")
         db.add(summary)
     else:
-        segments_of(db, session)
         drafts = build_chapters(db, session)
         store_chapters(db, session, drafts)
     session.processed = True

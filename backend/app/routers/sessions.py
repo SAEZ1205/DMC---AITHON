@@ -14,6 +14,7 @@ from .. import config
 from ..db import get_db
 from ..deps import current_user, get_course, get_session_or_404
 from ..models import Chapter, ChatMessage, QuizAttempt, QuizItem, SessionSummary, TranscriptSegment, User, WatchRange
+from ..services import summary as summary_service
 from ..services.attendance import live_metrics, overlap, union_ranges
 from ..services.chat import answer_question
 from ..services.recompute import compute_course, recompute_course
@@ -82,6 +83,11 @@ def transcript(session_id: int, user: User = Depends(current_user), db: Session 
     rows = db.exec(select(TranscriptSegment).where(TranscriptSegment.session_id == session_id)
                    .order_by(TranscriptSegment.start)).all()
     return [{"start": r.start, "end": r.end, "speaker": r.speaker, "text": r.text} for r in rows]
+
+
+@router.get("/sessions/{session_id}/summary")
+def session_summary(session_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
+    return summary_service.build(db, get_session_or_404(db, session_id))
 
 
 @router.get("/sessions/{session_id}/video")

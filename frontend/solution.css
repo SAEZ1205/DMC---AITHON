@@ -118,6 +118,17 @@
 .sol-tabpanel { overflow-y: auto; min-height: 0; flex: 1 1 auto; }
 
 .sol-prose { font-size: 14px; line-height: 1.7; color: #263238; }
+.sol-summary-header { font-size: 14px; color: #455a64; margin: 0 0 12px; }
+.sol-summary { list-style: none; margin: 0; padding: 0; }
+.sol-summary > li { padding: 12px 0 12px 12px; border-bottom: 1px solid #eef1f3; border-left: 3px solid transparent; font-size: 14px; color: #263238; }
+.sol-summary > li.key { border-left-color: var(--cyan); }
+.sol-summary > li.logistics { opacity: .75; }
+.sol-summary-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sol-summary-head .sol-muted { font-size: 12px; }
+.sol-summary ul { margin: 6px 0 0; padding-left: 20px; line-height: 1.6; }
+.sol-summary p { margin: 6px 0 0; line-height: 1.6; }
+.sol-summary blockquote { margin: 8px 0 0; padding: 6px 10px; background: #f6f8f9; border-radius: 6px; font-style: italic; color: #37474f; line-height: 1.5; }
+.sol-summary blockquote .sol-ts { font-style: normal; margin-left: 4px; }
 .sol-prose h4 { font-size: 15px; color: var(--heading); margin: 14px 0 6px; }
 .sol-prose h4:first-child { margin-top: 0; }
 .sol-prose p { margin: 0 0 10px; }

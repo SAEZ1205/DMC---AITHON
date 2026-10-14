@@ -288,6 +288,8 @@ def patch_chapters(session_id: int, body: ChaptersPatch, db: Session = Depends(g
         ch.is_key = patch.is_key
         if patch.title and patch.title.strip():
             ch.title = patch.title.strip()
+        if (patch.start is not None and patch.start != ch.start) or (patch.end is not None and patch.end != ch.end):
+            ch.key_sentences_json = "[]"
         if patch.start is not None:
             ch.start = patch.start
         if patch.end is not None:

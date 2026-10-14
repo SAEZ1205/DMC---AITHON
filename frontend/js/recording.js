@@ -78,7 +78,7 @@ function renderMeters() {
 function renderChapters() {
   const unvalidated = keyChapters().length && !detail.keys_validated;
   qs('#chaptersNote').innerHTML = unvalidated
-    ? '<i class="fa-solid fa-circle-info"></i> Tramos clave propuestos por IA, pendientes de validación del docente.' : '';
+    ? '<i class="fa-solid fa-circle-info"></i> Tramos clave propuestos automáticamente, pendientes de validación del docente.' : '';
   const t = player?.currentTime ?? 0;
   qs('#chapters').innerHTML = detail.chapters.map(c => {
     const ratio = c.end > c.start ? overlap(seen, c.start, c.end) / (c.end - c.start) : 0;
@@ -94,10 +94,31 @@ function renderChapters() {
   }).join('');
 }
 
-function renderSummary() {
-  qs('#tab-resumen').innerHTML = detail.summary
-    ? `<div class="sol-prose">${renderMarkdown(detail.summary)}</div>`
-    : '<p class="sol-muted">El resumen de esta sesión aún no está disponible.</p>';
+async function renderSummary() {
+  const el = qs('#tab-resumen');
+  let data;
+  try { data = await api(`/sessions/${sessionId}/summary`); } catch { data = null; }
+  if (!data?.chapters.length) {
+    el.innerHTML = detail.summary ? `<div class="sol-prose">${renderMarkdown(detail.summary)}</div>`
+      : '<p class="sol-muted">El resumen de esta sesión aún no está disponible.</p>';
+    return;
+  }
+  const slides = c => !c.slide_from ? '' : c.slide_from === c.slide_to ? ` · diapositiva ${c.slide_from}`
+    : ` · diapositivas ${Math.min(c.slide_from, c.slide_to)}–${Math.max(c.slide_from, c.slide_to)}`;
+  el.innerHTML = `<p class="sol-summary-header">${esc(data.header)}</p>
+    <ol class="sol-summary">${data.chapters.map(c => `<li class="${c.is_key ? 'key' : ''}${c.logistics ? ' logistics' : ''}">
+      <div class="sol-summary-head">
+        <button type="button" class="sol-ts" data-seek="${c.start}">${fmtTime(c.start)}</button>
+        <strong>${esc(c.title)}</strong>
+        ${c.is_key ? '<span class="sol-key-tag"><i class="fa-solid fa-key"></i> Tramo clave</span>' : ''}
+        <span class="sol-muted">${Math.round((c.end - c.start) / 60)} min${slides(c)}</span>
+      </div>
+      ${c.bullets.length ? `<ul>${c.bullets.map(b => `<li>${esc(b)}</li>`).join('')}</ul>` : ''}
+      ${c.text ? `<p>${linkTimestamps(esc(c.text))}</p>` : ''}
+      ${c.key_sentences.map(k => `<blockquote>«${esc(k.text)}»
+        <button type="button" class="sol-ts" data-seek="${k.start}">${fmtTime(k.start)}</button></blockquote>`).join('')}
+    </li>`).join('')}</ol>
+    ${data.approx_times ? '<p class="sol-muted">Los minutos son aproximados: la transcripción no traía marcas de tiempo.</p>' : ''}`;
 }
 
 function renderMissed() {
