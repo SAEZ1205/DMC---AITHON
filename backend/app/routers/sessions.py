@@ -107,15 +107,15 @@ class ChatIn(BaseModel):
 def chat(session_id: int, body: ChatIn, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
     s = get_session_or_404(db, session_id)
     res = answer_question(db, s, user.id, body.message.strip(), config.now())
-    return {"answer": res.answer, "citations": res.citations, "kind": res.kind}
+    return {"answer": res.answer, "citations": res.citations, "kind": res.kind, "route": res.route, "link": res.link}
 
 
 @router.get("/sessions/{session_id}/chat")
 def chat_history(session_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)) -> list[dict]:
     rows = db.exec(select(ChatMessage).where(ChatMessage.session_id == session_id, ChatMessage.user_id == user.id)
                    .order_by(ChatMessage.at, ChatMessage.id)).all()
-    return [{"role": r.role, "text": r.text, "citations": parse_citations(r.text) if r.role == "assistant" else []}
-            for r in rows[-config.CHAT_HISTORY_TURNS * 4:]]
+    return [{"role": r.role, "text": r.text, "citations": parse_citations(r.text) if r.role == "assistant" else [],
+             **json.loads(r.meta_json or "{}")} for r in rows[-config.CHAT_HISTORY_TURNS * 4:]]
 
 
 @router.get("/sessions/{session_id}/quiz")

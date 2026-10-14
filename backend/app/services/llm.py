@@ -83,10 +83,6 @@ class ReviewOut(BaseModel):
     suggestion: str = ""
 
 
-class QuestionKindOut(BaseModel):
-    kind: Literal["contenido", "logistica", "otro"]
-
-
 class MicroOut(BaseModel):
     topic: Literal["tiempo", "trabajo", "contenido", "ritmo", "satisfaccion", "otro"]
     sentiment: Literal["positivo", "neutro", "negativo"]

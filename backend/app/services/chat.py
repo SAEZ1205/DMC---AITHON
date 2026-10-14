@@ -1,7 +1,8 @@
-"""Chat de la grabación: responde solo con la transcripción de la sesión y cita el minuto.
-También clasifica preguntas (contenido/logística/otro) y respuestas a micro-preguntas."""
+"""Chat de la grabación: plataforma y logística se responden sin LLM (chat_router); el contenido, solo con la
+transcripción de la sesión y citando el minuto. También clasifica respuestas a micro-preguntas."""
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime
@@ -9,8 +10,8 @@ from datetime import datetime
 from sqlmodel import Session, select
 
 from .. import config
-from ..models import Chapter, ChatMessage, ClassSession, TranscriptSegment
-from . import llm
+from ..models import Chapter, ChatMessage, ClassSession, TranscriptSegment, User
+from . import chat_router, llm
 from .processing import chapters_text
 from .text import SegmentIndex, fmt_ts, parse_citations, strip_accents
 
@@ -22,6 +23,8 @@ class ChatAnswer:
     answer: str
     citations: list[int]
     kind: str
+    route: str = "contenido"
+    link: dict | None = None
 
 
 def _segment_line(s: TranscriptSegment) -> str:
@@ -57,24 +60,31 @@ def _mock_answer(segments: list[TranscriptSegment], question: str) -> str:
     return "Según la clase: " + " ".join(parts)
 
 
-LOGISTIC_WORDS = ("entrega", "fecha", "nota", "certificad", "pago", "horario", "material", "grabacion", "asistencia",
-                  "proyecto", "plazo", "vence", "tarea", "examen")
-
-
 def classify_question(message: str) -> str:
-    if not config.LLM_MOCK:
-        try:
-            return llm.complete_json([{"role": "user", "content": llm.load_prompt("classify_question", MESSAGE=message)}],
-                                     llm.QuestionKindOut, model=config.LLM_MODEL_FAST).kind
-        except llm.LLMError as exc:
-            log.warning("Clasificación de pregunta en modo simulado: %s", exc)
-    text = strip_accents(message.lower())
-    if any(w in text for w in LOGISTIC_WORDS):
-        return "logistica"
-    return "contenido" if "?" in message or len(text.split()) > 3 else "otro"
+    route = chat_router.classify(message)
+    if route != chat_router.CONTENIDO:
+        return route
+    return "contenido" if "?" in message or len(message.split()) > 3 else "otro"
+
+
+def _routed(db: Session, session: ClassSession, user_id: int, message: str, now: datetime) -> ChatAnswer | None:
+    route = chat_router.classify(message)
+    if route == chat_router.CONTENIDO:
+        return None
+    user = db.get(User, user_id)
+    res = (chat_router.platform_answer(db, session, user, now) if route == chat_router.PLATAFORMA
+           else chat_router.logistics_answer(db, session))
+    meta = json.dumps({"route": res.route, "link": res.link}, ensure_ascii=False)
+    db.add(ChatMessage(user_id=user_id, session_id=session.id, role="user", text=message, kind=route, at=now))
+    db.add(ChatMessage(user_id=user_id, session_id=session.id, role="assistant", text=res.text, at=now, meta_json=meta))
+    db.commit()
+    return ChatAnswer(answer=res.text, citations=[], kind=route, route=route, link=res.link)
 
 
 def answer_question(db: Session, session: ClassSession, user_id: int, message: str, now: datetime) -> ChatAnswer:
+    routed = _routed(db, session, user_id, message, now)
+    if routed:
+        return routed
     segments = db.exec(select(TranscriptSegment).where(TranscriptSegment.session_id == session.id)
                        .order_by(TranscriptSegment.start)).all()
     chapters = db.exec(select(Chapter).where(Chapter.session_id == session.id).order_by(Chapter.start)).all()

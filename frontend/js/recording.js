@@ -208,7 +208,8 @@ function bubble(role, html, extraClass = '') {
   qs('#chatLog').scrollTop = qs('#chatLog').scrollHeight;
   return el;
 }
-const assistantHtml = text => `<div class="sol-prose">${renderMarkdown(text)}</div>`;
+const assistantHtml = (text, link) => `<div class="sol-prose">${renderMarkdown(text)}</div>` +
+  (link ? `<a class="sol-chat-link" href="${esc(link.href)}"><i class="fa-solid fa-arrow-right"></i> ${esc(link.label)}</a>` : '');
 
 async function initChat() {
   const keys = keyChapters().slice(0, 3);
@@ -219,7 +220,7 @@ async function initChat() {
   if (!history.length) {
     bubble('assistant', assistantHtml(`Hola, ${user.name.split(' ')[0]}. Respondo solo con lo que se dijo en esta clase y te indico el minuto para que vayas directo. ¿Qué quieres repasar?`));
   }
-  history.forEach(m => bubble(m.role, m.role === 'assistant' ? assistantHtml(m.text) : esc(m.text)));
+  history.forEach(m => bubble(m.role, m.role === 'assistant' ? assistantHtml(m.text, m.link) : esc(m.text)));
   qs('#chatForm').addEventListener('submit', e => { e.preventDefault(); ask(); });
   qs('#chatInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(); } });
 }
@@ -235,7 +236,7 @@ async function ask() {
   try {
     const res = await api(`/sessions/${sessionId}/chat`, { method: 'POST', body: { message } });
     typing.remove();
-    bubble('assistant', assistantHtml(res.answer));
+    bubble('assistant', assistantHtml(res.answer, res.link));
   } catch (e) {
     typing.remove();
     bubble('assistant', `<p>${esc(e.message)}</p>`, 'error');

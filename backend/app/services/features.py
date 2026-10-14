@@ -136,7 +136,7 @@ def current_features(
         study_hour_mode=_hour_mode(recent_async),
         previous_study_hour_mode=_hour_mode(prev_async),
         questions_content=questions.count("contenido"),
-        questions_logistics=questions.count("logistica"),
+        questions_logistics=questions.count("logistica") + questions.count("plataforma"),
         quiz_score=recent_quiz[-1] if recent_quiz else None,
         quiz_trend=_slope([float(x) for x in recent_quiz]),
         quiz_recent_mean=_mean([float(x) for x in recent_quiz]),
