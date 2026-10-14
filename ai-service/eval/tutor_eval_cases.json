@@ -1,0 +1,127 @@
+{
+  "version": 1,
+  "lesson": "n8n-intro/clase-01-introduccion-n8n",
+  "notes": "Casos de la clase REAL de n8n (3:30:11). Las ventanas son segundos de inicio del segmento principal citado; salen de la transcripción real y se verifican en cada ejecución. No contienen texto de la clase.",
+  "cases": [
+    {
+      "id": "n8n-que-es",
+      "question": "¿Qué es n8n y para qué sirve?",
+      "expect": {
+        "behavior": "grounded",
+        "guardian": "relevant",
+        "max_citations": 1,
+        "primary_start": [
+          960,
+          1040
+        ]
+      }
+    },
+    {
+      "id": "n8n-que-es-pregunta-larga",
+      "question": "¿Qué es n8n y para qué sirve? Explícamelo de forma sencilla según lo enseñado por el profesor",
+      "expect": {
+        "behavior": "grounded",
+        "guardian": "relevant",
+        "max_citations": 1,
+        "primary_start": [
+          960,
+          1040
+        ],
+        "same_primary_as": "n8n-que-es"
+      }
+    },
+    {
+      "id": "no-code-vs-low-code",
+      "question": "¿Cuál es la diferencia entre no-code y low-code?",
+      "expect": {
+        "behavior": "grounded",
+        "guardian": "relevant",
+        "max_citations": 2,
+        "primary_start": [
+          930,
+          990
+        ]
+      }
+    },
+    {
+      "id": "procesos-a-automatizar",
+      "question": "¿Qué procesos conviene automatizar?",
+      "expect": {
+        "behavior": "grounded",
+        "guardian": "relevant",
+        "max_citations": 2,
+        "primary_start": [
+          520,
+          580
+        ]
+      }
+    },
+    {
+      "id": "workflow-vs-rpa",
+      "question": "¿Qué diferencia existe entre un workflow y un RPA?",
+      "expect": {
+        "behavior": "grounded",
+        "guardian": "relevant",
+        "max_citations": 2,
+        "primary_start": [
+          1860,
+          1930
+        ]
+      }
+    },
+    {
+      "id": "docker-en-la-clase",
+      "question": "¿Para qué sirve Docker en esta clase?",
+      "expect": {
+        "behavior": "grounded",
+        "guardian": "relevant",
+        "max_citations": 1,
+        "primary_start": [
+          2280,
+          2340
+        ]
+      }
+    },
+    {
+      "id": "tema-mencionado-no-explicado",
+      "question": "¿Qué es Git?",
+      "expect": {
+        "behavior": "grounded",
+        "max_citations": 3
+      },
+      "expect_simulated": {
+        "behavior": "no_evidence",
+        "no_citations": true,
+        "prompt_note": "solo MENCIONAN"
+      }
+    },
+    {
+      "id": "tema-ausente-de-la-clase",
+      "question": "¿Qué es Kubernetes?",
+      "expect": {
+        "behavior": "no_evidence",
+        "no_citations": true
+      }
+    },
+    {
+      "id": "fuera-de-tema",
+      "question": "¿Cómo se prepara una pizza napolitana?",
+      "expect": {
+        "behavior": "out_of_scope",
+        "guardian": "not_relevant",
+        "no_citations": true
+      }
+    },
+    {
+      "id": "seguimiento-contextual",
+      "turns": [
+        "¿Qué diferencia existe entre un workflow y un RPA?",
+        "Dame otro ejemplo"
+      ],
+      "expect": {
+        "behavior": "grounded",
+        "different_from_previous": true
+      }
+    }
+  ]
+}

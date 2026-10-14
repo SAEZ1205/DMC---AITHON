@@ -16,10 +16,10 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
-from app.knowledge.text_utils import normalize_text
+from app.knowledge.text_utils import normalize_text, tokenize
 from app.llm.demo_provider import shorten
 from app.llm.errors import LLMMalformedResponse
-from app.llm.prompts import CANARY, PROMPT_VERSION
+from app.llm.prompts import CANARY, PROMPT_VERSION, fix_asr
 from app.models.transcript import SegmentMatch
 
 MAX_ANSWER_CHARS = 1600
@@ -29,6 +29,8 @@ _TAG_GROUP_RE = re.compile(r"\[\s*(S\d+(?:\s*[,;y]\s*S\d+)*)\s*\]", re.IGNORECAS
 _ANY_TAG_RE = re.compile(r"\[\s*S\d+[^\]]*\]", re.IGNORECASE)
 _TIME_RE = re.compile(r"(?<![\d:])\d{1,2}:\d{2}(?::\d{2})?(?![\d:])")
 _URL_RE = re.compile(r"https?://\S+|www\.\S+", re.IGNORECASE)
+_QUOTE_RE = re.compile(r"«([^»]+)»")
+MIN_QUOTE_WORDS = 4          # una cita literal más corta que esto no se verifica (ya es una expresión suelta)
 _FENCE_RE = re.compile(r"^\s*```(?:json)?\s*(.*?)\s*```\s*$", re.DOTALL | re.IGNORECASE)
 _LEAK_MARKERS = ("system prompt", "prompt de sistema", "prompt del sistema", "instrucciones del sistema",
                  PROMPT_VERSION.lower())
@@ -85,7 +87,10 @@ def verify_and_render(
 
     # 1. etiquetas usadas -> posiciones reales de la evidencia
     used = data.get("used_segments")
-    if not isinstance(used, list) or not used or not all(isinstance(u, str) for u in used):
+    answerable = data.get("answerable") is not False       # solo un false EXPLÍCITO permite no citar ningún segmento
+    if used is None and not answerable:
+        used = []
+    if not isinstance(used, list) or (not used and answerable) or not all(isinstance(u, str) for u in used):
         raise LLMMalformedResponse("'used_segments' debe ser una lista no vacía de etiquetas")
     indices: List[int] = []
     for raw in used:
@@ -140,6 +145,9 @@ def verify_and_render(
         if stem in shown and stem not in supported:
             raise LLMMalformedResponse(f"afirmación sensible sin respaldo ({stem})")
 
+    # 6b. citas textuales «...»: lo que se atribuye a la clase entre comillas debe estar en los segmentos entregados
+    _check_quotes(rendered, evidence_text, student_message)
+
     # 7. longitud y pregunta socrática
     rendered = shorten(rendered.strip(), MAX_ANSWER_CHARS)
     question = data.get("follow_up_question")
@@ -160,6 +168,19 @@ def verify_and_render(
 
     text = rendered if question is None else f"{rendered}\n\n{question}"
     return VerifiedAnswer(text=text, follow_up_question=question, cited_indices=tuple(indices))
+
+
+def _check_quotes(rendered: str, evidence_text: str, student_message: str) -> None:
+    """Cada tramo «literal» de 4+ palabras debe aparecer (sin importar mayúsculas, tildes ni puntuación) en la evidencia."""
+    quotes = _QUOTE_RE.findall(rendered)
+    if not quotes:
+        return
+    haystack = " " + " ".join(tokenize(fix_asr(evidence_text) + " " + evidence_text + " " + student_message)) + " "
+    for quote in quotes:
+        for part in re.split(r"…|\.\.\.", quote):
+            words = tokenize(part)
+            if len(words) >= MIN_QUOTE_WORDS and " " + " ".join(words) + " " not in haystack:
+                raise LLMMalformedResponse("cita textual entre comillas que no está en la clase")
 
 
 def _problem_in_aux_text(text: str, label_to_index, allowed_times, supported: str) -> bool:

@@ -148,7 +148,7 @@ def test_engine_semantics_without_a_kimi_summary(acad):
     ext = acad.get(f"{SQL}?engine=extractive").json()
     best = acad.get(f"{SQL}?engine=best").json()
     llm = acad.get(f"{SQL}?engine=llm").json()
-    assert (ext["engine"], ext["mode"], ext["generated_by"]) == ("extractive", "DEMO", "extractive-heuristic/1.0")
+    assert (ext["engine"], ext["mode"], ext["generated_by"]) == ("extractive", "DEMO", "extractive-heuristic/1.1")
     assert best["engine"] == "extractive" and best["provider_notice"] is None
     assert llm["engine"] == "extractive" and "acción administrativa explícita" in llm["provider_notice"]
     assert acad.get(f"{SQL}?engine=otro").json()["error"]["code"] == "invalid_engine"
@@ -209,17 +209,21 @@ def test_the_real_class_summary_is_generated_when_processing_the_class_not_when_
 def test_the_real_class_is_summarized_in_time_window_chapters_with_real_timestamps(n8n, n8n_app):
     body = n8n.get(N8N).json()
     lesson = n8n_app.state.real_lesson.lesson
-    assert body["mode"] == "DEMO" and body["engine"] == "extractive" and "heurístico" in body["method_note"]
+    assert body["mode"] == "DEMO" and body["engine"] == "extractive" and "Resumen local por temas" in body["method_note"]
+    assert "sin modelo de lenguaje" in body["method_note"] and "no es una cita del docente" in body["method_note"].lower()
     secs = body["sections"]
-    assert 8 <= len(secs) <= 14 and secs[0]["start_seconds"] == lesson.segments[0].start_seconds
+    assert 8 <= len(secs) <= 20 and secs[0]["start_seconds"] == lesson.segments[0].start_seconds
     by_start = {s.start_seconds: s for s in lesson.segments}
     prev_end = 0.0
     for sec in secs:
         assert sec["start_seconds"] in by_start and sec["start_seconds"] >= prev_end and sec["end_seconds"] <= lesson.duration_seconds
         prev_end = sec["end_seconds"]
         ref = sec["references"][0]
-        line = next(ln for s in lesson.segments if s.start_seconds == ref["start_seconds"] for ln in s.lines if ln.start_seconds == ref["seek_seconds"])
-        assert " ".join(sec["key_point"].rstrip("…").split()) in " ".join(line.text.split())    # frase textual del renglón citado
+        segment = next(s for s in lesson.segments if s.start_seconds == ref["start_seconds"])
+        line = next(ln for ln in segment.lines if ln.start_seconds == ref["seek_seconds"])
+        assert " ".join(sec["key_point"].rstrip("…").split()) in " ".join(segment.text.split())   # frase TEXTUAL del segmento citado
+        head = " ".join(sec["key_point"].split()[:2])
+        assert head.lower() in " ".join(line.text.split()).lower()                           # y el salto cae en el renglón donde empieza
         assert sec["start_seconds"] <= ref["seek_seconds"] < sec["end_seconds"] and sec["title"]
     assert secs[-1]["end_seconds"] == lesson.duration_seconds
     chapters = n8n.get(f"/api/courses/{N8N_COURSE}/lessons/{N8N_LESSON}/chapters").json()["chapters"]

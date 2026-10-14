@@ -108,7 +108,7 @@ def test_the_kimi_summary_is_stored_and_clearly_distinguished_from_the_demo_one(
     assert kimi["cache"]["engine"] == "kimi" and kimi["cache"]["cached"] is True and "Kimi" in kimi["method_note"]
     assert kimi["provider_notice"] is None and kimi["generated_by"] != demo["generated_by"]
     again = live.get(f"{SUMMARY_URL}?engine=extractive").json()
-    assert again["engine"] == "extractive" and again["generated_by"] == "extractive-heuristic/1.0" and again["mode"] == "DEMO"
+    assert again["engine"] == "extractive" and again["generated_by"] == "extractive-heuristic/1.1" and again["mode"] == "DEMO"
     assert live.get(f"{SUMMARY_URL}?engine=llm").json()["engine"] == "kimi"
     assert {r["engine"] for r in rows(live.app_.state.academic_store.base.db_path, "SELECT engine FROM lesson_summaries")} == {"extractive", "kimi"}
 

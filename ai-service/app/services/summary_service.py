@@ -18,7 +18,7 @@ from typing import Any, Callable, Dict, Optional, Tuple
 from app.models.transcript import LessonTranscript
 from app.storage.academic_store import AcademicStore
 
-PIPELINE_VERSION = "summary/1.1"
+PIPELINE_VERSION = "summary/1.2"       # 1.2: capítulos por léxico temático (topic_lexicon automation-es/1)
 ENGINES = ("extractive", "kimi")
 
 

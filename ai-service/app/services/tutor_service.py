@@ -16,7 +16,7 @@ from dataclasses import dataclass, field, replace
 from typing import List, Optional, Set, Tuple
 
 from app.knowledge.retriever import FRAME_STEMS, KnowledgeRetriever
-from app.knowledge.text_utils import normalize_text, stem
+from app.knowledge.text_utils import content_tokens, normalize_text, stem
 from app.llm.base import (
     ChatTurn, FollowUpMode, LLMProvider, ResponseKind, TutorContext, TutorReply,
 )
@@ -36,6 +36,8 @@ from app.storage.conversation_store import ConversationStore, SessionRecord
 
 logger = logging.getLogger(__name__)
 
+# En preguntas de definición lo habitual es UNA explicación: otro segmento solo acompaña si es casi igual de fuerte.
+DEFINITION_SECONDARY_RATIO = 0.85
 HISTORY_WINDOW_MESSAGES = 6      # mensajes previos entregados como contexto (3 turnos)
 HISTORY_MESSAGE_MAX_CHARS = 500  # tope por mensaje en el contexto
 MAX_CANDIDATES = 10              # segmentos pedidos al recuperador
@@ -57,6 +59,8 @@ class _Plan:
     mode: FollowUpMode = FollowUpMode.NONE
     focus_query: Optional[str] = None
     update_focus: bool = False
+    direct_evidence: Optional[bool] = None     # definiciones: ¿algún segmento explica el tema o solo lo menciona?
+    missing_terms: Tuple[str, ...] = ()
 
 
 def _segment_key(match: SegmentMatch) -> Tuple[str, float]:
@@ -150,6 +154,8 @@ class TutorService:
             turn_number=turn_number,
             follow_up_mode=plan.mode,
             user_intent=analysis.user_intent,
+            direct_evidence=plan.direct_evidence,
+            missing_terms=plan.missing_terms,
         )
         reply = self._generate(context)
 
@@ -299,9 +305,16 @@ class TutorService:
         return session
 
     def _search(self, course_id: str, lesson_id: Optional[str], query: str,
-                phrase_text: Optional[str] = None) -> List[SegmentMatch]:
+                phrase_text: Optional[str] = None, intent: Optional[str] = None) -> List[SegmentMatch]:
         return self.retriever.retrieve_segments(course_id, query, lesson_id=lesson_id, top_k=MAX_CANDIDATES,
-                                                phrase_text=phrase_text)
+                                                phrase_text=phrase_text, intent=intent)
+
+    @staticmethod
+    def _missing_terms(query: str, evidence: List[SegmentMatch]) -> Tuple[str, ...]:
+        """Términos con contenido de la consulta que ningún segmento entregado contiene (por raíz)."""
+        found = {stem(normalize_text(w)) for m in evidence for w in m.matched_terms}
+        words = [w for w in content_tokens(query) if stem(w) not in FRAME_STEMS]
+        return tuple(dict.fromkeys(w for w in words if stem(w) not in found and len(w) >= 4))[:5]
 
     def _detect_topic(self, course_id: str, query: str) -> Optional[str]:
         topics = self.retriever.retrieve(course_id, query, top_k=1)
@@ -340,7 +353,9 @@ class TutorService:
                 return _Plan(ResponseKind.NEEDS_CONTEXT)
             query, reuse_previous = previous_query, True
 
-        candidates = self._search(course_id, lesson_id, query, None if reuse_previous else message)
+        intent = None if reuse_previous else (analysis.kind if analysis.kind == "definition" else None)
+        phrase = None if reuse_previous else (analysis.search_text or message)
+        candidates = self._search(course_id, lesson_id, query, phrase, intent)
         if not candidates and analysis.refers_to_previous and previous_query and not reuse_previous:
             # "¿Y qué pasa si no uso eso?": sin términos útiles propios, se interpreta con el tema previo.
             query, reuse_previous = previous_query, True
@@ -358,8 +373,11 @@ class TutorService:
             if not candidates:
                 return _Plan(ResponseKind.EXHAUSTED, topic_id=topic_id, label=label, mode=mode)
 
+        ratio = self.provider.secondary_score_ratio
+        if intent == "definition":
+            ratio = max(ratio, DEFINITION_SECONDARY_RATIO)
         evidence = [candidates[0]] + [
-            m for m in candidates[1:] if m.score >= candidates[0].score * self.provider.secondary_score_ratio
+            m for m in candidates[1:] if m.score >= candidates[0].score * ratio
         ][: self.provider.max_evidence - 1]
         return _Plan(
             ResponseKind.GROUNDED,
@@ -369,6 +387,8 @@ class TutorService:
             mode=mode,
             focus_query=query,
             update_focus=not reuse_previous,
+            missing_terms=self._missing_terms(query, evidence),
+            direct_evidence=(any(m.direct for m in evidence) if intent == "definition" else None),
         )
 
     def _notice(self, course_id: str, lesson_id: Optional[str]) -> str:

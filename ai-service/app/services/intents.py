@@ -10,6 +10,7 @@ Distingue cuatro situaciones:
 import re
 from dataclasses import dataclass
 
+from app.knowledge.intent_signals import is_definition_question, strip_style
 from app.knowledge.text_utils import content_tokens, normalize_text, tokenize
 from app.llm.base import FollowUpMode
 
@@ -50,12 +51,16 @@ class MessageAnalysis:
     query: str               # términos propios del mensaje, con la ortografía del estudiante ("" si no tiene)
     follow_up_mode: FollowUpMode
     refers_to_previous: bool  # contiene deícticos (eso, esto, anterior...)
+    search_text: str = ""     # el mensaje sin frases de estilo ("de forma sencilla", "según lo enseñado..."): sirve para frases literales
+    kind: str = "other"       # definition | other: qué tipo de respuesta pide (ver app.knowledge.intent_signals)
 
 
 def analyze_message(message: str) -> MessageAnalysis:
     tokens = tokenize(message)
     all_tokens = set(tokens)
-    own_terms = [t for t in content_tokens(message) if t not in IGNORABLE_WORDS]
+    core = strip_style(message)          # las frases de estilo no describen el tema: "forma sencilla" no debe traer segmentos
+    own_terms = [t for t in content_tokens(core) if t not in IGNORABLE_WORDS]
+    kind = "definition" if is_definition_question(message) else "other"
 
     again = any(a == "otra" and b == "vez" for a, b in zip(tokens, tokens[1:]))  # "otra vez" = repetir
     if again:
@@ -71,8 +76,8 @@ def analyze_message(message: str) -> MessageAnalysis:
 
     if own_terms:
         wanted = set(own_terms)
-        words = [w for w in re.findall(r"\w+", message) if normalize_text(w) in wanted]
-        return MessageAnalysis("question", " ".join(words), mode, refers)
+        words = [w for w in re.findall(r"\w+", core) if normalize_text(w) in wanted]
+        return MessageAnalysis("question", " ".join(words), mode, refers, core, kind)
 
     if all_tokens & CLOSING_WORDS:
         return MessageAnalysis("closing", "", FollowUpMode.NONE, False)

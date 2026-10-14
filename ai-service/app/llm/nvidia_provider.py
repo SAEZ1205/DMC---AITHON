@@ -108,6 +108,9 @@ class ProbeResult:
 class NvidiaKimiProvider(KimiProvider):
     name = "nvidia-kimi"
     mode = "LIVE"
+    # Un segmento secundario solo acompaña al principal si tiene al menos el 70 % de su puntuación (Moonshot conserva el 50 %):
+    # con una cita principal clara y pocas citas extra, la respuesta es más corta y el estudiante salta al minuto correcto.
+    secondary_score_ratio = 0.7
 
     def __init__(
         self,

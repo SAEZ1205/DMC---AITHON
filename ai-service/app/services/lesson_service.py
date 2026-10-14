@@ -44,9 +44,10 @@ LLM_SUMMARY_NOT_GENERATED = (
     "transcripción: se devolvió el resumen heurístico (modo DEMO), sin ninguna llamada a un proveedor externo."
 )
 HEURISTIC_METHOD_NOTE = (
-    "Resumen heurístico DEMO (sin modelo de lenguaje): capítulos por ventanas de ~10 min, títulos con los términos más "
-    "distintivos de cada ventana y una frase textual representativa con su minuto. No se ha medido cuánto tiempo ahorra "
-    "y no sustituye ver la clase."
+    "Resumen local por temas (sin modelo de lenguaje y sin llamadas externas): la clase se divide en bloques de ~10 min; cada bloque "
+    "recibe una etiqueta temática solo si sus palabras clave aparecen en la transcripción, y se muestra una frase textual con su minuto "
+    "(con los errores del reconocimiento automático). No es una cita del docente ni un resumen redactado por IA. No se ha medido cuánto "
+    "tiempo ahorra y no sustituye ver la clase."
 )
 MAX_KEY_POINTS = 12
 
@@ -173,7 +174,7 @@ class LessonService:
         response = LessonSummaryResponse(
             course_id=lesson.course_id, lesson_id=lesson.lesson_id, lesson_title=lesson.title,
             duration_seconds=lesson.duration_seconds, duration_label=format_timestamp(lesson.duration_seconds),
-            mode="DEMO", engine="extractive", provider="demo", generated_by="extractive-heuristic/1.0",
+            mode="DEMO", engine="extractive", provider="demo", generated_by="extractive-heuristic/1.1",
             overview=build_overview(lesson, chapters, concepts), sections=sections,
             key_concepts=[KeyConcept(concept=c.concept, kind=c.kind, first_seconds=c.first_seconds,
                                      first_minute=format_timestamp(c.first_seconds), mentions=c.mentions,
@@ -182,7 +183,7 @@ class LessonService:
             method_note=HEURISTIC_METHOD_NOTE if windowed else SUMMARY_METHOD_NOTE, content_notice=self._notice(lesson),
         )
         payload = response.model_dump(mode="json", exclude={"cache", "provider_notice", "telemetry_notice"})
-        return payload, {"generator": "extractive-heuristic/1.0", "chapters": len(sections), "llm_calls": 0}
+        return payload, {"generator": "extractive-heuristic/1.1", "chapters": len(sections), "llm_calls": 0}
 
     # ------------------------------------------------------------ lo que te perdiste
     def missed_content(self, req: MissedContentRequest, *, idem_scope: Optional[str] = None) -> MissedContentResponse:

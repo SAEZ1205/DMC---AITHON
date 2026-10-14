@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from app.models.chat import CourseInfo, CourseTopicInfo, CitationRef
 from app.models.transcript import LessonTranscript, SegmentMatch, TranscriptSegment
+from app.knowledge.intent_signals import ASKED_BONUS, NEAR_BONUS, STYLE_GAP, definition_signals
 from app.knowledge.text_utils import (
     STOPWORDS, bigrams, contains_phrase, content_stems, content_tokens, stem, tokenize, unique,
 )
@@ -43,6 +44,7 @@ class _IndexedSegment:
     tf: Counter = field(default_factory=Counter)
     pairs: set = field(default_factory=set)
     norm: str = ""                 # texto normalizado (" palabra palabra ") para buscar frases literales
+    tokens: List[str] = field(default_factory=list)    # tokens normalizados EN ORDEN (para señales de proximidad)
 
 
 class KnowledgeRetriever:
@@ -159,9 +161,10 @@ class KnowledgeRetriever:
         indexed = []
         for i, seg in enumerate(lesson.segments):
             stems = content_stems(seg.text)
+            tokens = tokenize(seg.text)
             indexed.append(_IndexedSegment(
                 lesson=lesson, index=i, tf=Counter(stems), pairs=set(bigrams(stems)),
-                norm=" " + " ".join(tokenize(seg.text)) + " ",
+                norm=" " + " ".join(tokens) + " ", tokens=tokens,
             ))
         self._segment_index[(lesson.course_id, lesson.lesson_id)] = indexed
 
@@ -266,6 +269,7 @@ class KnowledgeRetriever:
         lesson_id: Optional[str] = None,
         top_k: int = 3,
         phrase_text: Optional[str] = None,
+        intent: Optional[str] = None,
     ) -> List[SegmentMatch]:
         """
         Recupera segmentos de transcripción relevantes con sus timestamps.
@@ -276,6 +280,9 @@ class KnowledgeRetriever:
           informa su `lesson_id`).
         - `phrase_text` (opcional): la pregunta ORIGINAL; solo se usa para la bonificación por frases literales
           ("qué es n8n"), no para los términos ni la cobertura.
+        - `intent="definition"` (opcional): preguntas "¿qué es X?"/"¿para qué sirve X?". Prioriza los segmentos donde X aparece
+          junto a una expresión de función o donde la clase plantea esa pregunta, y marca esos segmentos con `direct=True`.
+          Sin `intent` el orden es exactamente el de siempre.
         - Devuelve [] si la consulta no tiene términos con contenido, si la cobertura
           de la consulta en el material es insuficiente o si no hay coincidencias.
         """
@@ -309,6 +316,8 @@ class KnowledgeRetriever:
         display = self._display_terms(query)
         ngrams = self._query_ngrams(phrase_text or query)
 
+        subject = {t for t in core_terms if t not in FRAME_STEMS} if intent == "definition" else set()
+        direct_ids: set = set()
         scored: List[Tuple[float, _IndexedSegment, List[str]]] = []
         for seg in pool:
             hits = [t for t in matched if t in seg.tf]
@@ -317,6 +326,11 @@ class KnowledgeRetriever:
             score = sum(idf[t] * (seg.tf[t] * (BM25_K1 + 1)) / (seg.tf[t] + BM25_K1) for t in hits)
             score += PHRASE_BONUS * len(query_pairs & seg.pairs)
             score += NGRAM_BONUS_PER_TOKEN * max((len(g.split()) for g in ngrams if g in seg.norm), default=0)
+            if subject:
+                near, asked = definition_signals(seg.tokens, subject)
+                score *= 1 + NEAR_BONUS * near + ASKED_BONUS * asked
+                if near or asked:
+                    direct_ids.add((seg.lesson.lesson_id, seg.index))
             scored.append((score, seg, [display.get(t, t) for t in hits]))
 
         if not scored:
@@ -339,6 +353,7 @@ class KnowledgeRetriever:
                     matched_terms=terms,
                     focus_seconds=focus_seconds,
                     focus_text=focus_text,
+                    direct=(seg.lesson.lesson_id, seg.index) in direct_ids,
                 )
             )
             if len(results) >= top_k:
@@ -348,13 +363,14 @@ class KnowledgeRetriever:
     @staticmethod
     def _query_ngrams(query: str) -> List[str]:
         """Frases contiguas de la pregunta (3 a 6 palabras) con al menos una palabra de contenido, listas para buscar en `norm`."""
-        tokens = tokenize(query)
         grams = []
-        for size in range(min(NGRAM_MAX, len(tokens)), NGRAM_MIN - 1, -1):
-            for i in range(len(tokens) - size + 1):
-                window = tokens[i:i + size]
-                if any(t not in STOPWORDS and len(t) > 1 for t in window):
-                    grams.append(" " + " ".join(window) + " ")
+        for chunk in query.split(STYLE_GAP):         # una frase de estilo eliminada ("por favor") parte la pregunta en trozos
+            tokens = tokenize(chunk)
+            for size in range(min(NGRAM_MAX, len(tokens)), NGRAM_MIN - 1, -1):
+                for i in range(len(tokens) - size + 1):
+                    window = tokens[i:i + size]
+                    if any(t not in STOPWORDS and len(t) > 1 for t in window):
+                        grams.append(" " + " ".join(window) + " ")
         return grams
 
     @staticmethod

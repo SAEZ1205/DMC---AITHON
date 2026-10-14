@@ -4,6 +4,26 @@ Carpeta reservada para el módulo de inteligencia artificial y sus APIs.
 
 La idea es mantener esta lógica separada del frontend para que ambos equipos puedan trabajar sin pisarse archivos. Cuando el servicio esté listo, el frontend se conectará mediante endpoints definidos por el equipo de IA/backend.
 
+## Etapa 7: calidad del tutor, citas y resumen local
+
+Todo local y determinista: **no se hizo ninguna llamada a NVIDIA** (las pruebas usan transporte simulado y `conftest` bloquea la red externa).
+
+- **Recuperador / citas** (`app/knowledge/intent_signals.py`, `retriever.py`, `services/intents.py`, `tutor_service.py`):
+  las frases de estilo de la pregunta ("de forma sencilla", "según lo enseñado por el profesor", "por favor") ya no entran a la búsqueda ni cruzan frases literales;
+  en preguntas de definición ("¿qué es X?", "¿para qué sirve X?") se priorizan los segmentos donde X aparece junto a una expresión de función o donde la clase plantea esa pregunta
+  (`SegmentMatch.direct`); un segmento secundario solo acompaña si tiene ≥ 70 % (NVIDIA) o ≥ 85 % (definiciones) de la puntuación del principal. Sin `intent` el orden es el de siempre.
+- **Prompt v1.1.0** (`llm/prompts.py`): responder directo y breve, parafrasear, no atribuir al docente lo que no dice, separar un "Complemento (no es de la clase)",
+  corregir con cautela errores evidentes del reconocimiento de voz (`NHN`→`n8n`, solo en el texto que viaja al modelo), `answerable:false` cuando la clase no cubre la pregunta, y avisos
+  de contexto (tema solo mencionado / términos ausentes). **Verificador** (`llm/verification.py`): rechaza «citas textuales» de 4+ palabras que no estén en los segmentos.
+- **Resumen local por temas** (`knowledge/topic_lexicon.py`, `lesson_analysis.py`): títulos académicos asignados solo si las palabras clave del tema aparecen en esa parte de la clase,
+  bloques contiguos unidos (≤ 30 min), frase textual más informativa por capítulo y un resumen general que es un **índice con minutos**. `PIPELINE_VERSION = summary/1.2`: se regenera una
+  vez; después, caché SQLite. La pantalla distingue "Resumen local por temas · sin IA generativa" de "Resumen generado con Kimi".
+- **Resumen con Kimi:** acción administrativa explícita ya existente; `scripts/plan_kimi_summary.py` muestra (sin red) cuántas solicitudes haría. No se ejecutó.
+- **Evaluación reproducible:** `eval/tutor_eval_cases.json` + `scripts/eval_tutor.py` (modo DEMO real y modo "LIVE simulado", etiquetado siempre como simulado). Comprueba comportamiento,
+  pertinencia, citas exactas y minutos, estado declarado. Informes en `data/real/` (ignorado por Git).
+- **Límites conocidos:** el modo DEMO no sabe que un tema solo se *menciona* (p. ej. "¿Qué es Git?"); con Kimi lo señala el aviso de evidencia. Un seguimiento tipo "otro ejemplo" solo recuerda los
+  términos de la pregunta anterior. El tiempo de una respuesta LIVE es el de NVIDIA (no medido con este prompt): el backend local responde en ~10 ms.
+
 ## Etapa 6.2: tiempos de espera de Kimi K3 (NVIDIA)
 
 **Causa del `llm_timeout: NVIDIA no respondió en 60 s`:** el valor por defecto de `NVIDIA_TIMEOUT_SECONDS` era 60 s (el `.env` no lo definía) y la

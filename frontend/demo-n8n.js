@@ -109,8 +109,9 @@
   async function loadSummary() {
     const s = await api(`/api/courses/${lesson.course_id}/lessons/${lesson.lesson_id}/summary?engine=best`);
     const badges = $("summaryBadges");
-    const engineLabel = s.engine === "kimi" ? `Generado con ${s.generated_by}` : "Resumen heurístico DEMO (sin modelo de lenguaje)";
-    badges.append(el("span", "demo-pill" + (s.engine === "kimi" ? " live" : " warn"), engineLabel));
+    const byKimi = s.engine === "kimi";
+    const engineLabel = byKimi ? `Resumen generado con Kimi · ${s.generated_by}` : "Resumen local por temas · sin IA generativa";
+    badges.append(el("span", "demo-pill" + (byKimi ? " live" : " warn"), engineLabel));
     badges.append(el("span", "demo-pill", s.cache.cached ? "Reutilizado desde la base de datos" : "Generado ahora"));
     badges.append(el("span", "demo-pill", `Generado: ${new Date(s.cache.generated_at).toLocaleString()}`));
     $("summaryOverview").textContent = s.overview;

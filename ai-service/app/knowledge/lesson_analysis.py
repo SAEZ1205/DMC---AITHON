@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from app.knowledge.text_utils import STOPWORDS, contains_phrase, stem, tokenize
+from app.knowledge.topic_lexicon import title_windows, topic_terms
 from app.llm.demo_provider import shorten
 from app.models.transcript import LessonTranscript, TranscriptSegment, format_timestamp
 
@@ -150,6 +151,7 @@ class Chapter:
     # Segmentos que respaldan el capítulo en el resumen (por defecto todos; en clases largas, el más representativo)
     reference_segments: Optional[List[TranscriptSegment]] = None
     focus_seconds: Optional[float] = None
+    topic_keys: Tuple[str, ...] = ()          # temas del léxico que titulan el capítulo (vacío = título por palabras propias)
 
     @property
     def start_seconds(self) -> float:
@@ -211,14 +213,54 @@ def _term_stems(text: str) -> List[Tuple[str, str]]:
     return out
 
 
+MERGE_MAX_SECONDS = 1800      # un capítulo temático no pasa de ~30 min: si el tema continúa, sigue en otro capítulo "(continuación)"
+SENTENCE_MIN_WORDS, SENTENCE_MAX_WORDS = 8, 40
+_DEFINITION_CUES = (" es un ", " es una ", " permite ", " sirve ", " significa ", " diferencia ", " consiste ", " se usa ", " se utiliza ")
+
+
+def representative_sentence(segments: Sequence[TranscriptSegment], keys: Sequence[str]) -> Optional[Tuple[str, TranscriptSegment]]:
+    """
+    La frase TEXTUAL más informativa del capítulo: completa (empieza con mayúscula), de 8 a 40 palabras, con varios términos
+    del tema y, si es posible, con expresiones de definición. Devuelve (frase, segmento) o None si no hay una frase decente.
+    """
+    wanted = set(topic_terms(keys))
+    best: Optional[Tuple[float, str, TranscriptSegment]] = None
+    for seg in segments:
+        for raw in _SENTENCE_RE.split(seg.text.strip()):
+            sentence = " ".join(raw.split())
+            words = sentence.split()
+            if not (SENTENCE_MIN_WORDS <= len(words) <= SENTENCE_MAX_WORDS) or not (sentence[0].isupper() or sentence[0] in "¿¡"):
+                continue
+            norm_tokens = tokenize(sentence)
+            norm = " " + " ".join(norm_tokens) + " "
+            topic_hits = len({t for t in norm_tokens if t in wanted})
+            if not topic_hits:
+                continue
+            filler = sum(1 for t in norm_tokens if t in ORAL_FILLER) / max(len(norm_tokens), 1)
+            score = 2.0 * topic_hits + sum(1.0 for cue in _DEFINITION_CUES if cue in norm) + (1.0 if 12 <= len(words) <= 30 else 0.0) - 4.0 * filler
+            if best is None or score > best[0]:
+                best = (score, sentence, seg)
+    return None if best is None else (shorten(best[1], KEY_SENTENCE_MAX_CHARS), best[2])
+
+
+def _line_start(segment: TranscriptSegment, sentence: str) -> float:
+    """Segundo del renglón donde empieza la frase (si el segmento conserva renglones); si no, el inicio del segmento."""
+    head = " ".join(tokenize(sentence)[:4])
+    for line in segment.lines or []:
+        if head and head in " ".join(tokenize(line.text)):
+            return line.start_seconds
+    return segment.start_seconds
+
+
 def window_chapters(lesson: LessonTranscript, hits: Dict[int, List[ConceptHit]]) -> List[Chapter]:
     """
-    Capítulos de ~10 min para clases largas sin fichas de tema.
+    Capítulos para clases largas sin fichas de tema.
 
-    * Los límites son límites de SEGMENTO (nunca se inventa un tiempo).
-    * El título reúne los términos más distintivos de la ventana (TF-IDF entre ventanas): son palabras que
-      realmente aparecen en esa parte de la clase.
-    * La descripción es una frase TEXTUAL del segmento más representativo, y el capítulo la cita con su renglón.
+    * Los bloques base son ventanas de ~10 min con límites de SEGMENTO (nunca se inventa un tiempo).
+    * Cada bloque se titula con el tema del léxico (`topic_lexicon`) cuyas palabras REALMENTE aparecen en él; si ningún tema tiene
+      evidencia suficiente, el título reúne sus términos más distintivos (TF-IDF entre ventanas).
+    * Los bloques contiguos con el mismo tema se unen (hasta ~30 min por capítulo).
+    * La descripción es una frase TEXTUAL de la transcripción (con sus errores de reconocimiento) y el capítulo la cita con su renglón.
     """
     windows: List[List[TranscriptSegment]] = []
     for seg in lesson.segments:
@@ -236,36 +278,63 @@ def window_chapters(lesson: LessonTranscript, hits: Dict[int, List[ConceptHit]])
                 surface.setdefault(k, Counter())[low] += 1
     n = len(windows)
     doc_freq = Counter(k for c in per_window for k in c)
+    themes = title_windows([" ".join(seg.text for seg in w) for w in windows])
 
     def weight(key: str, count: int) -> float:
         if n > 1 and doc_freq[key] / n > MAX_TERM_WINDOW_RATIO:
             return 0.0
         return count * math.log(1 + n / doc_freq[key])
 
+    # --- unir bloques contiguos con el mismo tema
+    groups: List[Tuple[List[int], Optional[Tuple[str, Tuple[str, ...]]], bool]] = []   # (índices de ventana, tema, es_continuación)
+    for i, theme in enumerate(themes):
+        if groups and theme is not None and groups[-1][1] is not None and groups[-1][1][1] == theme[1]:
+            span = windows[i][-1].end_seconds - windows[groups[-1][0][0]][0].start_seconds
+            if span <= MERGE_MAX_SECONDS:
+                groups[-1][0].append(i)
+                continue
+            groups.append(([i], theme, True))
+            continue
+        groups.append(([i], theme, False))
+
     chapters: List[Chapter] = []
-    for i, (w, counts) in enumerate(zip(windows, per_window), start=1):
-        ranked = sorted(((weight(k, c), k) for k, c in counts.items() if weight(k, c) > 0), reverse=True)[:TITLE_TERMS]
+    for gi, (idxs, theme, continuation) in enumerate(groups, start=1):
+        w = [seg for i in idxs for seg in windows[i]]
+        counts: Counter = Counter()
+        for i in idxs:
+            counts.update(per_window[i])
+        key_weights = {k: weight(k, c) for k, c in counts.items()}
+        ranked = sorted(((v, k) for k, v in key_weights.items() if v > 0), reverse=True)[:TITLE_TERMS]
         words = [surface[k].most_common(1)[0][0] for _, k in ranked]
-        title = " · ".join(wd.capitalize() for wd in words) if words else f"Parte {i}"
-        key_weights = {k: weight(k, c) for c, k in ((c, k) for k, c in counts.items())}
-        best_seg, best_score = w[0], -1.0
-        for seg in w:
-            score = sum(key_weights.get(k, 0.0) for k, _ in _term_stems(seg.text)) / math.sqrt(max(len(seg.text), 1))
-            if score > best_score:
-                best_seg, best_score = seg, score
-        focus_line = None
-        if best_seg.lines:
-            focus_line = max(best_seg.lines, key=lambda ln: sum(key_weights.get(k, 0.0) for k, _ in _term_stems(ln.text)))
-        description_source = (focus_line.text if focus_line else best_seg.text)
+        fallback_title = " · ".join(wd.capitalize() for wd in words) if words else f"Parte {gi}"
+        if theme:
+            title, keys = theme[0] + (" (continuación)" if continuation else ""), theme[1]
+        else:
+            title, keys = fallback_title, ()
+
+        chosen = representative_sentence(w, keys) if keys else None
+        if chosen:
+            description, best_seg = chosen
+            focus = _line_start(best_seg, description)
+        else:
+            best_seg, best_score = w[0], -1.0
+            for seg in w:
+                score = sum(key_weights.get(k, 0.0) for k, _ in _term_stems(seg.text)) / math.sqrt(max(len(seg.text), 1))
+                if score > best_score:
+                    best_seg, best_score = seg, score
+            focus_line = None
+            if best_seg.lines:
+                focus_line = max(best_seg.lines, key=lambda ln: sum(key_weights.get(k, 0.0) for k, _ in _term_stems(ln.text)))
+            description = shorten(" ".join((focus_line.text if focus_line else best_seg.text).split()), KEY_SENTENCE_MAX_CHARS)
+            focus = focus_line.start_seconds if focus_line else best_seg.start_seconds
         concepts: List[str] = []
         for seg in w:
             for h in hits.get(seg.segment_id, []):
                 if h.label not in concepts:
                     concepts.append(h.label)
         chapters.append(Chapter(
-            chapter_id=f"cap-{i:02d}", title=title, segments=list(w), concepts=concepts[:8],
-            description=shorten(" ".join(description_source.split()), KEY_SENTENCE_MAX_CHARS),
-            reference_segments=[best_seg], focus_seconds=focus_line.start_seconds if focus_line else best_seg.start_seconds,
+            chapter_id=f"cap-{gi:02d}", title=title, segments=list(w), concepts=concepts[:8], description=description,
+            reference_segments=[best_seg], focus_seconds=focus, topic_keys=keys,
         ))
     return chapters
 
@@ -317,6 +386,11 @@ def key_concepts(lesson: LessonTranscript, hits: Dict[int, List[ConceptHit]]) ->
 
 
 def build_overview(lesson: LessonTranscript, chapters: Sequence[Chapter], concepts: Sequence[ConceptSummary]) -> str:
+    if any(ch.topic_keys for ch in chapters):
+        index = "; ".join(f"{ch.title} ({format_timestamp(ch.start_seconds)})" for ch in chapters if "(continuación)" not in ch.title)
+        return (f"«{lesson.title}» dura {format_timestamp(lesson.duration_seconds)}. Según su transcripción, la clase recorre estos temas "
+                f"(entre paréntesis, el minuto donde empiezan): {index}. Los títulos son etiquetas temáticas asignadas porque sus palabras "
+                f"clave aparecen en la transcripción; no son frases del docente.")
     shown = [c.title.split(" — ")[0] for c in chapters[:8]]
     names = ", ".join(shown) + (f" y {len(chapters) - 8} más" if len(chapters) > 8 else "")
     topics = [c.concept for c in concepts if c.kind == "tema"]

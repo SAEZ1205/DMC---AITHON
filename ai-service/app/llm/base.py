@@ -48,6 +48,10 @@ class TutorContext:
     turn_number: int = 1                         # turno actual dentro de la sesión (desde 1)
     follow_up_mode: FollowUpMode = FollowUpMode.NONE
     user_intent: str = "question"                # question | follow_up | greeting | closing
+    # Preguntas de definición: ¿algún segmento explica el tema, o solo lo mencionan? None = no aplica.
+    direct_evidence: Optional[bool] = None
+    # Términos de la pregunta que NO aparecen en ningún segmento entregado (el tutor no debe explicarlos como si la clase los dijera).
+    missing_terms: Tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

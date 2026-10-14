@@ -84,3 +84,5 @@ class SegmentMatch(BaseModel):
     # Renglón del segmento que mejor coincide con la consulta (solo si el segmento conserva sus renglones).
     focus_seconds: Optional[float] = None
     focus_text: Optional[str] = Field(default=None, description="Texto del segmento desde el renglón de foco")
+    # Solo en preguntas de definición: el segmento explica el sujeto (junto a una expresión de función o donde la clase lo pregunta).
+    direct: bool = False
