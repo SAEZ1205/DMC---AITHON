@@ -154,9 +154,12 @@ def test_wrong_attempt_uses_a_single_llm_call(db, real_llm, monkeypatch):
 
     def fake(**kwargs):
         calls.append(kwargs)
-        evaluating = "Evalúa" in kwargs["messages"][-1]["content"]
+        task = kwargs["messages"][-1]["content"]
+        if "cifradas con la clave" in task:
+            return raw_response({"reply": "¡Exacto! Quedan cifradas [15:00]. ¿Cómo lo usarías en tu flujo?",
+                                 "level": 2, "evaluation": "correcta"})
         return raw_response({"reply": "Casi: no es un Excel. Pista: en [15:00] fíjate dónde quedan cifradas. ¿Dónde?",
-                             "level": 2, "evaluation": "incorrecta" if evaluating else None}, tokens=300)
+                             "level": 2, "evaluation": "incorrecta" if "Evalúa" in task else None}, tokens=300)
 
     monkeypatch.setattr(llm, "_create", fake)
     uid, _, sid = seed_chat(db)
@@ -164,8 +167,11 @@ def test_wrong_attempt_uses_a_single_llm_call(db, real_llm, monkeypatch):
     with TestClient(app) as client:
         first = post(client, sid, uid, message="¿Cómo se guardan las credenciales?")
         res = post(client, sid, uid, thread_id=first["thread_id"], action="answer", message="En un Excel")
-    assert len(calls) == 2
+        done = post(client, sid, uid, thread_id=first["thread_id"], action="answer",
+                    message="Quedan cifradas con la clave de la instancia")
+    assert len(calls) == 3 and "La búsqueda ubicó el tema en [" in calls[0]["messages"][-1]["content"]
     assert res["evaluation"] == "incorrecta" and res["level"] == 2 and res["answer"].startswith("Casi: no es un Excel.")
+    assert done["closed"] and done["answer"].startswith("¡Exacto! Quedan cifradas [15:00].") and "?" not in done["answer"]
 
 
 def test_quiz_assist_uses_simulation_when_provider_fails(db, real_llm, monkeypatch):

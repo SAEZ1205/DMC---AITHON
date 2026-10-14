@@ -427,7 +427,8 @@ def llm_turn(ev: Evidence, chapters: list[Chapter], history: list[ChatMessage], 
     system = llm.load_prompt("tutor_system", QUIZ_RULE=quiz_rule, **_context(ev, chapters))
     messages = [{"role": "system", "content": system}]
     messages += [{"role": m.role, "content": m.text} for m in history[-config.CHAT_HISTORY_TURNS:]]
-    messages.append({"role": "user", "content": f"{task}\nResponde en el nivel {level}."})
+    where = f"\nLa búsqueda ubicó el tema en [{ev.ts}]{ev.slide_text}; usa ese minuto y esa diapositiva." if ev.anchor else ""
+    messages.append({"role": "user", "content": f"{task}{where}\nResponde en el nivel {level}."})
     return llm.complete_json(messages, llm.TutorOut)
 
 
@@ -602,7 +603,8 @@ class Tutor:
                 evaluation = out.evaluation or evaluation
                 reply = out.reply.strip()
                 if evaluation == CORRECT:
-                    feedback = reply
+                    kept = [s for s in re.split(r"(?<=[.!?])\s+", reply) if not s.endswith("?")]
+                    feedback = " ".join(kept) or reply
                 else:
                     follow_up = reply
                     feedback = re.split(r"(?<=[.!])\s+", reply)[0] or feedback
