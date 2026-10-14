@@ -1,4 +1,4 @@
-"""Operación: ingesta de Zoom, recálculo y reloj simulado (solo staff)."""
+"""Operación: ingesta de Zoom, recálculo, reloj simulado, reinicio de la demo y estado del LLM (solo staff)."""
 from __future__ import annotations
 
 from collections import Counter
@@ -13,7 +13,7 @@ from .. import config
 from ..db import engine, get_db
 from ..deps import get_session_or_404, require_tutor
 from ..models import Course
-from ..services import content, snapshot, tutor_chat
+from ..services import content, llm, snapshot, tutor_chat
 from ..services.real_session import apply_to_session, has_real_content
 from ..services.recompute import recompute_course
 from ..services.zoom_ingest import ingest_session
@@ -66,6 +66,12 @@ def reset_demo(db: Session = Depends(get_db)) -> dict:
         raise HTTPException(400, str(e)) from e
     tutor_chat.clear_cache()
     return result
+
+
+@router.get("/llm")
+def llm_status() -> dict:
+    """Modo del LLM, cupo usado (minuto y día) y veces que se respondió con la simulación por falta de cupo."""
+    return llm.status()
 
 
 class ClockIn(BaseModel):

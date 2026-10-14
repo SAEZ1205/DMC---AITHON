@@ -20,7 +20,6 @@ from ..models import (Alert, Chapter, ClassSession, MicroAnswer, Outbox, QuizIte
 from ..services import quiz as quiz_service
 from ..services import tutor_chat
 from ..services.attendance import EN_VIVO, RECUPERADA
-from ..services.llm import LLMError
 from ..services.recompute import StudentStatus, compute_course, recompute_course
 from ..services.risk import ACTIVO, EN_ADAPTACION, EN_RIESGO, INACTIVO
 from ..views import STATUS_LABELS, compliance_json, indicators_json, iso
@@ -438,18 +437,15 @@ def quiz_assist(session_id: int, body: AssistIn, db: Session = Depends(get_db)) 
         item = db.get(QuizItem, body.item_id) if body.item_id else None
         if item is None or item.session_id != s.id:
             raise HTTPException(400, "Elige una pregunta de esta sesión")
-    try:
-        if body.action == "proponer":
-            created = quiz_service.propose(db, s)
-            message = (f"La IA propuso {len(created)} {'pregunta' if len(created) == 1 else 'preguntas'} en borrador. "
-                       "Revísalas una por una: no llegan al alumno hasta que las apruebes.") if created \
-                else "Todos los tramos clave ya tienen preguntas; no hay nada nuevo que proponer."
-            return {**_quiz_payload(db, s), "created": [q.id for q in created], "message": message}
-        if body.action == "alternativas":
-            return {"distractors": quiz_service.alternatives(db, s, item)}
-        return {"review": quiz_service.review(db, s, item)}
-    except LLMError as exc:
-        raise HTTPException(502, "El asistente no respondió; intenta de nuevo en un momento.") from exc
+    if body.action == "proponer":
+        created = quiz_service.propose(db, s)
+        message = (f"La IA propuso {len(created)} {'pregunta' if len(created) == 1 else 'preguntas'} en borrador. "
+                   "Revísalas una por una: no llegan al alumno hasta que las apruebes.") if created \
+            else "Todos los tramos clave ya tienen preguntas; no hay nada nuevo que proponer."
+        return {**_quiz_payload(db, s), "created": [q.id for q in created], "message": message}
+    if body.action == "alternativas":
+        return {"distractors": quiz_service.alternatives(db, s, item)}
+    return {"review": quiz_service.review(db, s, item)}
 
 
 @router.get("/labels")

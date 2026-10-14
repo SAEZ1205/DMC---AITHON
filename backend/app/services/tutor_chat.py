@@ -381,9 +381,8 @@ def mock_turn(ev: Evidence, corpus: Corpus, question: str, level: int) -> str:
                 "¿Cómo completarías el resto con tus palabras?")
     detail = ""
     if ev.slide:
-        body = ev.slide.text.strip()
-        if ev.slide.title and body.startswith(ev.slide.title):
-            body = body[len(ev.slide.title):].strip()
+        lines = [ln.strip().rstrip(".") for ln in _slide_focus(ev).splitlines()]
+        body = "; ".join(ln for ln in lines if ln and ln != ev.slide.title)
         detail = f"En la diapositiva {ev.slide.unit_no} («{ev.slide.title}»): {_quote(body, 35).rstrip('.…')}… "
     said = _quote(" ".join(s.text for s in ev.window[:3]) or (ev.anchor.text if ev.anchor else ""), 30)
     return cap_words(f"{detail}En la clase [{ts}] se dijo: «{said}». "
@@ -412,8 +411,11 @@ def mock_evaluate(ev: Evidence, corpus: Corpus, attempt: str) -> tuple[str, str]
 def _context(ev: Evidence, chapters: list[Chapter]) -> dict[str, str]:
     ch = "\n".join(f"- [{fmt_ts(c.start)}–{fmt_ts(c.end)}] {c.title}{' (tramo clave)' if c.is_key else ''}"
                    for c in chapters)
-    material = "\n".join(f"- {u.source_file}, {u.kind} {u.unit_no}: {u.title}. {_quote(u.text, 80)}" for u in ev.units)
-    transcript = "\n".join(f"[{fmt_ts(s.start)}] {s.text}" for s in ev.fragments)
+    material = "\n".join(f"- {u.source_file}, {u.kind} {u.unit_no}: {u.title}. {_quote(u.text, config.CHAT_LLM_UNIT_WORDS)}"
+                         for u in ev.units[:config.CHAT_LLM_UNITS])
+    center = ev.anchor.start if ev.anchor else 0
+    near = sorted(ev.fragments, key=lambda s: abs(s.start - center))[:config.CHAT_LLM_FRAGMENTS]
+    transcript = "\n".join(f"[{fmt_ts(s.start)}] {s.text}" for s in sorted(near, key=lambda s: s.start))
     return {"CHAPTERS": ch or "(sin capítulos)", "MATERIAL": material or "(sin material)",
             "TRANSCRIPT": transcript}
 
@@ -497,12 +499,14 @@ class Tutor:
             self._quiz_cache[question] = quiz_match(self.db, self.session, question, self.corpus)
         return self._quiz_cache[question]
 
-    def _write(self, ev: Evidence, thread: ChatThread, level: int, task: str, prefix: str = "") -> str:
+    def _write(self, ev: Evidence, thread: ChatThread, level: int, task: str, prefix: str = "",
+               use_llm: bool = True) -> str:
         """Redacta el turno (LLM o simulación) y aplica las reglas: cita, 90 palabras y protección del quiz."""
-        llm.track("tutor")
+        if use_llm:
+            llm.track("tutor")
         protected = self._protected_item(thread)
         text = ""
-        if not config.LLM_MOCK:
+        if use_llm and not config.LLM_MOCK:
             try:
                 text = llm_turn(ev, self.chapters, self._history(thread), level, bool(protected), task).reply.strip()
                 text = f"{prefix} {text}".strip()
@@ -510,6 +514,9 @@ class Tutor:
                 log.error("Fallo del tutor, se usa la simulación: %s", exc)
         if not text:
             text = f"{prefix} {mock_turn(ev, self.corpus, thread.question, level)}".strip()
+        return self._polish(ev, text, protected)
+
+    def _polish(self, ev: Evidence, text: str, protected: QuizItem | None) -> str:
         if ev.anchor and not TS_PATTERN.search(text):
             text += f" Revísalo en [{ev.ts}]."
         if protected and leaks_answer(text, protected):
@@ -580,16 +587,25 @@ class Tutor:
         return self._finish(thread, ev, text, asks=True)
 
     def _evaluate(self, thread: ChatThread, ev: Evidence, attempt: str) -> TutorReply:
+        """Una sola llamada al LLM: evalúa el intento y, si no es correcto, sigue con la ayuda del nivel siguiente."""
         thread.attempts += 1
         evaluation, feedback = mock_evaluate(ev, self.corpus, attempt)
+        target = min(thread.max_level, EXPLAIN, max(thread.level + 1, thread.attempts + 1))
+        protected = self._protected_item(thread)
+        follow_up = ""
         llm.track("tutor")
         if not config.LLM_MOCK:
             try:
-                out = llm_turn(ev, self.chapters, self._history(thread), thread.level, bool(self._protected_item(thread)),
-                               f"Evalúa este intento del alumno: «{attempt}»")
+                out = llm_turn(ev, self.chapters, self._history(thread), target, bool(protected),
+                               f"Evalúa este intento del alumno: «{attempt}». Si es correcto, dilo en una o dos frases. "
+                               f"Si no, da la retroalimentación en una frase y sigue con la ayuda del nivel {target}.")
                 evaluation = out.evaluation or evaluation
                 reply = out.reply.strip()
-                feedback = reply if evaluation == CORRECT else (re.split(r"(?<=[.!])\s+", reply)[0] or feedback)
+                if evaluation == CORRECT:
+                    feedback = reply
+                else:
+                    follow_up = reply
+                    feedback = re.split(r"(?<=[.!])\s+", reply)[0] or feedback
             except llm.LLMError as exc:
                 log.error("Fallo de la evaluación del intento, se usa la simulación: %s", exc)
         thread.evaluation = evaluation
@@ -597,14 +613,15 @@ class Tutor:
             thread.closed = True
             text = cap_words(feedback + _next_key(self.chapters, ev))
             return self._finish(thread, ev, text, asks=False, evaluation=evaluation)
-        target = min(thread.max_level, EXPLAIN, max(thread.level + 1, thread.attempts + 1))
         if target == thread.level:
             text = (f"{feedback} Como esta pregunta se parece a una del quiz, sigo con pistas: vuelve a mirar "
                     f"[{ev.ts}]{ev.slide_text}. ¿Qué cambiarías en tu respuesta?")
             return self._finish(thread, ev, cap_words(text), asks=True, evaluation=evaluation)
         thread.level = target
-        text = self._write(ev, thread, target, f"El intento del alumno fue {evaluation}: «{attempt}». Ya se le dio "
-                           "la retroalimentación; ahora continúa con la ayuda de este nivel.", prefix=feedback)
+        if follow_up:
+            text = self._polish(ev, follow_up, protected)
+        else:
+            text = self._write(ev, thread, target, "", prefix=feedback, use_llm=False)
         return self._finish(thread, ev, text, asks=True, evaluation=evaluation)
 
 

@@ -39,17 +39,32 @@ DATABASE_URL = _normalize_db_url(os.getenv("DATABASE_URL") or (
 IS_SQLITE = DATABASE_URL.startswith("sqlite")
 DB_SNAPSHOT = SQLITE_FILE if ON_VERCEL or not IS_SQLITE else None
 
-# --- LLM (proveedor compatible con OpenAI; Kimi por defecto) ---
-LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.moonshot.ai/v1")
+# --- LLM (proveedor compatible con OpenAI; Groq por defecto) ---
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.groq.com/openai/v1")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
-LLM_MODEL_CHAT = os.getenv("LLM_MODEL_CHAT", "kimi-k2.6")
-LLM_MODEL_FAST = os.getenv("LLM_MODEL_FAST", "kimi-k2.6")
-LLM_CONTEXT_TOKENS = int(os.getenv("LLM_CONTEXT_TOKENS", "256000"))
+LLM_MODEL_CHAT = os.getenv("LLM_MODEL_CHAT", "openai/gpt-oss-120b")
+LLM_MODEL_FAST = os.getenv("LLM_MODEL_FAST", "openai/gpt-oss-120b")
+LLM_CONTEXT_TOKENS = int(os.getenv("LLM_CONTEXT_TOKENS", "131072"))
 LLM_TEMPERATURE = os.getenv("LLM_TEMPERATURE")  # vacío = valor por defecto del proveedor
+LLM_REASONING_EFFORT = os.getenv("LLM_REASONING_EFFORT", "low")  # gpt-oss: el razonamiento cuenta como tokens
 LLM_MOCK = os.getenv("LLM_MOCK", "").strip() in {"1", "true", "yes"} or not LLM_API_KEY or LLM_API_KEY == "..."
+# Cupo del proveedor (plan gratuito de Groq para openai/gpt-oss-120b) y fracción que usamos como máximo.
+# Sin cupo, el servicio responde con su simulación al instante en vez de fallar o hacer esperar al alumno.
+LLM_RPM = int(os.getenv("LLM_RPM", "30"))
+LLM_RPD = int(os.getenv("LLM_RPD", "1000"))
+LLM_TPM = int(os.getenv("LLM_TPM", "8000"))
+LLM_TPD = int(os.getenv("LLM_TPD", "200000"))
+LLM_SAFETY = float(os.getenv("LLM_SAFETY", "0.85"))
+LLM_MAX_WAIT_S = float(os.getenv("LLM_MAX_WAIT_S", "4"))  # espera máxima por cupo antes de simular
+LLM_TIMEOUT_S = float(os.getenv("LLM_TIMEOUT_S", "25"))
+LLM_CACHE_TTL_S = int(os.getenv("LLM_CACHE_TTL_S", "21600"))  # respuestas idénticas no gastan cupo
 CHAT_TOP_FRAGMENTS = 10  # fragmentos de transcripción por turno del tutor
 CHAT_TOP_UNITS = 4  # unidades de material por turno
-CHAT_HISTORY_TURNS = 6  # últimos mensajes del hilo que ve el LLM
+CHAT_HISTORY_TURNS = 4  # últimos mensajes del hilo que ve el LLM
+# Lo que entra al prompt del tutor (el cupo de Groq es de 8K tokens por minuto): ~1K tokens de contexto.
+CHAT_LLM_FRAGMENTS = 6
+CHAT_LLM_UNITS = 3
+CHAT_LLM_UNIT_WORDS = 50
 CHAT_MAX_WORDS = 90
 CHAT_EVIDENCE_MIN = 0.6  # peso (IDF) de la pregunta que debe aparecer en la clase para no ser «fuera de la clase»
 CHAT_QUIZ_SIMILARITY = 0.5  # BM25 normalizado frente a una pregunta aprobada del quiz

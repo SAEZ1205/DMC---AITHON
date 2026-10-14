@@ -6,6 +6,7 @@ QUIZ_MIN_APPROVED. La IA trabaja solo cuando el docente se lo pide y todo lo que
 from __future__ import annotations
 
 import json
+import logging
 import random
 import re
 
@@ -18,6 +19,7 @@ from .summary import key_sentences, sentences, slide_bullets
 from .text import fmt_ts, parse_citations
 from .transcript_txt import parse_ts
 
+log = logging.getLogger("dmc.quiz")
 APPROVED, DRAFT, DISCARDED = "aprobada", "borrador", "descartada"
 FROM_TEACHER, FROM_AI = "docente", "propuesta_ia"
 NEGATIONS = re.compile(r"\b(no|nunca|excepto|salvo|ninguna?|jam[aá]s)\b", re.IGNORECASE)
@@ -138,21 +140,14 @@ def propose(db: Session, session: ClassSession) -> list[QuizItem]:
     targets = [m for m in material if m["chapter"].is_key and not _covered(items, m["chapter"])][:5]
     if not targets:
         return []
-    if config.LLM_MOCK:
+    proposals = None
+    if not config.LLM_MOCK:
+        try:
+            proposals = _llm_propose(items, material, targets)
+        except llm.LLMError as exc:
+            log.warning("Propuesta de preguntas en modo simulado: %s", exc)
+    if proposals is None:
         proposals = _mock_propose(targets, material)
-    else:
-        out = llm.complete_json([{"role": "user", "content": llm.load_prompt(
-            "quiz_assist", ACTION="Proponer preguntas",
-            INSTRUCTIONS=(f"Propón hasta {len(targets)} preguntas de opción múltiple (4 alternativas, una correcta) "
-                          "sobre los tramos clave que todavía no tienen preguntas: "
-                          + "; ".join(m["chapter"].title for m in targets)
-                          + ". Cada una con el minuto (mm:ss o h:mm:ss) y la diapositiva que la respaldan. "
-                          "Los distractores deben ser errores comunes reales del tema, no opciones absurdas."),
-            KEY_CONTENT=_key_content_text(material), EXISTING="\n".join(f"- {q.question}" for q in items) or "(ninguna)",
-            ITEM="", FORMAT='{"items": [{"question": "...", "options": ["...", "...", "...", "..."], '
-                            '"answer_idx": 0, "explanation": "...", "minute": "mm:ss", "slide": 1}]}')}],
-            llm.QuizProposalOut)
-        proposals = [p.model_dump() for p in out.items]
     created = []
     for p in proposals[:5]:
         q = QuizItem(session_id=session.id, question=p["question"], options_json=json.dumps(p["options"], ensure_ascii=False),
@@ -164,6 +159,21 @@ def propose(db: Session, session: ClassSession) -> list[QuizItem]:
     for q in created:
         db.refresh(q)
     return created
+
+
+def _llm_propose(items: list[QuizItem], material: list[dict], targets: list[dict]) -> list[dict]:
+    out = llm.complete_json([{"role": "user", "content": llm.load_prompt(
+        "quiz_assist", ACTION="Proponer preguntas",
+        INSTRUCTIONS=(f"Propón hasta {len(targets)} preguntas de opción múltiple (4 alternativas, una correcta) "
+                      "sobre los tramos clave que todavía no tienen preguntas: "
+                      + "; ".join(m["chapter"].title for m in targets)
+                      + ". Cada una con el minuto (mm:ss o h:mm:ss) y la diapositiva que la respaldan. "
+                      "Los distractores deben ser errores comunes reales del tema, no opciones absurdas."),
+        KEY_CONTENT=_key_content_text(material), EXISTING="\n".join(f"- {q.question}" for q in items) or "(ninguna)",
+        ITEM="", FORMAT='{"items": [{"question": "...", "options": ["...", "...", "...", "..."], '
+                        '"answer_idx": 0, "explanation": "...", "minute": "mm:ss", "slide": 1}]}')}],
+        llm.QuizProposalOut)
+    return [p.model_dump() for p in out.items]
 
 
 def _mock_propose(targets: list[dict], material: list[dict]) -> list[dict]:
@@ -195,21 +205,24 @@ def alternatives(db: Session, session: ClassSession, item: QuizItem) -> list[str
     llm.track("quiz_assist")
     options = json.loads(item.options_json)
     correct = options[item.answer_idx]
-    if config.LLM_MOCK:
-        material = [m for m in _chapter_material(db, session) if not m["chapter"].logistics]
-        pool = [b for m in material for b in m["bullets"]] + \
-            [_trim(s["text"]) for m in material for s in m["sentences"]] + [m["chapter"].title for m in material]
-        pool = [p for p in dict.fromkeys(pool) if p not in options]
-        random.Random(item.id).shuffle(pool)
-        return pool[:3]
-    out = llm.complete_json([{"role": "user", "content": llm.load_prompt(
-        "quiz_assist", ACTION="Sugerir alternativas",
-        INSTRUCTIONS="Propón 3 distractores plausibles para la pregunta: errores comunes reales del tema, con un "
-                     "largo y estilo parecidos a la respuesta correcta. No cambies la pregunta ni la respuesta.",
-        KEY_CONTENT=_key_content_text(_chapter_material(db, session)), EXISTING="(no aplica)",
-        ITEM=f"Pregunta: {item.question}\nRespuesta correcta: {correct}",
-        FORMAT='{"distractors": ["...", "...", "..."]}')}], llm.DistractorsOut)
-    return out.distractors
+    if not config.LLM_MOCK:
+        try:
+            out = llm.complete_json([{"role": "user", "content": llm.load_prompt(
+                "quiz_assist", ACTION="Sugerir alternativas",
+                INSTRUCTIONS="Propón 3 distractores plausibles para la pregunta: errores comunes reales del tema, con "
+                             "un largo y estilo parecidos a la respuesta correcta. No cambies la pregunta ni la respuesta.",
+                KEY_CONTENT=_key_content_text(_chapter_material(db, session)), EXISTING="(no aplica)",
+                ITEM=f"Pregunta: {item.question}\nRespuesta correcta: {correct}",
+                FORMAT='{"distractors": ["...", "...", "..."]}')}], llm.DistractorsOut)
+            return out.distractors
+        except llm.LLMError as exc:
+            log.warning("Alternativas en modo simulado: %s", exc)
+    material = [m for m in _chapter_material(db, session) if not m["chapter"].logistics]
+    pool = [b for m in material for b in m["bullets"]] + \
+        [_trim(s["text"]) for m in material for s in m["sentences"]] + [m["chapter"].title for m in material]
+    pool = [p for p in dict.fromkeys(pool) if p not in options]
+    random.Random(item.id).shuffle(pool)
+    return pool[:3]
 
 
 def review(db: Session, session: ClassSession, item: QuizItem) -> dict:
@@ -217,15 +230,18 @@ def review(db: Session, session: ClassSession, item: QuizItem) -> dict:
     llm.track("quiz_assist")
     if not config.LLM_MOCK:
         options = json.loads(item.options_json)
-        out = llm.complete_json([{"role": "user", "content": llm.load_prompt(
-            "quiz_assist", ACTION="Revisar redacción",
-            INSTRUCTIONS="Señala ambigüedades: dos alternativas que podrían ser correctas, una pista en el enunciado, "
-                         "negaciones confusas o alternativas de largo muy distinto. Sugiere una versión mejorada del "
-                         "enunciado; no la reemplaces.",
-            KEY_CONTENT=_key_content_text(_chapter_material(db, session)), EXISTING="(no aplica)",
-            ITEM=f"Pregunta: {item.question}\nAlternativas: {options}\nCorrecta: {options[item.answer_idx]}",
-            FORMAT='{"issues": ["..."], "suggestion": "..."}')}], llm.ReviewOut)
-        return out.model_dump()
+        try:
+            out = llm.complete_json([{"role": "user", "content": llm.load_prompt(
+                "quiz_assist", ACTION="Revisar redacción",
+                INSTRUCTIONS="Señala ambigüedades: dos alternativas que podrían ser correctas, una pista en el "
+                             "enunciado, negaciones confusas o alternativas de largo muy distinto. Sugiere una versión "
+                             "mejorada del enunciado; no la reemplaces.",
+                KEY_CONTENT=_key_content_text(_chapter_material(db, session)), EXISTING="(no aplica)",
+                ITEM=f"Pregunta: {item.question}\nAlternativas: {options}\nCorrecta: {options[item.answer_idx]}",
+                FORMAT='{"issues": ["..."], "suggestion": "..."}')}], llm.ReviewOut)
+            return out.model_dump()
+        except llm.LLMError as exc:
+            log.warning("Revisión de redacción en modo simulado: %s", exc)
     return review_rules(item)
 
 
