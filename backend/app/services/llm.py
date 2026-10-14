@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections import Counter
 from functools import lru_cache
 from typing import Literal, TypeVar
 
@@ -14,6 +15,21 @@ from .. import config
 
 log = logging.getLogger("dmc.llm")
 T = TypeVar("T", bound=BaseModel)
+PURPOSES = ("tutor", "micro", "quiz_assist")
+CALLS: Counter = Counter()
+
+
+def track(purpose: str) -> None:
+    """Cuenta cada operación que usa el LLM (o su simulación). Solo hay tres usos: tutor, micro y quiz_assist."""
+    if purpose not in PURPOSES:
+        raise ValueError(f"Uso de LLM no previsto: {purpose}")
+    CALLS[purpose] += 1
+    log.info("LLM [%s] llamada %d (%s) · totales %s", purpose, CALLS[purpose],
+             "simulado" if config.LLM_MOCK else config.LLM_MODEL_CHAT, dict(CALLS))
+
+
+def usage() -> dict:
+    return {p: CALLS[p] for p in PURPOSES}
 
 
 class LLMError(RuntimeError):
@@ -47,6 +63,24 @@ class QuizItemOut(BaseModel):
 
 class QuizOut(BaseModel):
     items: list[QuizItemOut] = Field(min_length=5)
+
+
+class QuizProposalItem(QuizItemOut):
+    minute: str = ""
+    slide: int | None = None
+
+
+class QuizProposalOut(BaseModel):
+    items: list[QuizProposalItem] = Field(max_length=5)
+
+
+class DistractorsOut(BaseModel):
+    distractors: list[str] = Field(min_length=3, max_length=3)
+
+
+class ReviewOut(BaseModel):
+    issues: list[str] = Field(default_factory=list)
+    suggestion: str = ""
 
 
 class QuestionKindOut(BaseModel):

@@ -295,6 +295,203 @@ async function saveKeys() {
   } catch (err) { toast(err.message, 'error'); qs('#saveKeys').disabled = false; }
 }
 
+// ---------- quiz del docente ----------
+const QUIZ_STATUS = { borrador: ['en_riesgo', 'Borrador'], aprobada: ['activo', 'Aprobada'], descartada: ['inactivo', 'Descartada'] };
+let currentQuiz = null;
+let quizEditing = null;
+let quizExtras = {};
+
+async function loadQuizSessions() {
+  const rows = await api(`/tutor/sessions?course_id=${courseId}`);
+  qs('#quizSessions').innerHTML = rows.filter(s => s.processed).map(s => `
+    <tr tabindex="0" data-quiz-session="${s.id}"${currentQuiz?.session.id === s.id ? ' class="selected"' : ''}>
+      <td><strong>Sesión ${s.number}</strong><br><small class="sol-muted">${esc(s.title)}</small></td>
+      <td><small>${esc(s.quiz.text)}</small></td>
+      <td>${s.quiz.active ? chip('activo', 'Activo') : chip('en_riesgo', 'En preparación')}</td>
+    </tr>`).join('');
+}
+
+function quizForm(item) {
+  const q = item || { question: '', options: ['', '', '', ''], answer_idx: 0, explanation: '', minute: '', slide: '' };
+  const id = item ? item.id : 'new';
+  return `<form class="sol-quiz-form" data-quiz-form="${id}">
+    <label>Pregunta<textarea name="question" rows="2" required minlength="5">${esc(q.question)}</textarea></label>
+    <fieldset><legend>Alternativas (marca la correcta)</legend>
+      ${q.options.map((o, i) => `<label class="sol-quiz-option"><input type="radio" name="answer_idx" value="${i}" ${i === q.answer_idx ? 'checked' : ''} aria-label="Correcta">
+        <input type="text" name="option${i}" value="${esc(o)}" required aria-label="Alternativa ${i + 1}"></label>`).join('')}
+    </fieldset>
+    <label>Explicación (el alumno la ve al aprobar)<textarea name="explanation" rows="2">${esc(q.explanation || '')}</textarea></label>
+    <div class="sol-quiz-form-row">
+      <label>Minuto<input type="text" name="minute" value="${esc(q.minute || '')}" placeholder="mm:ss" pattern="(\\d{1,2}:)?\\d{1,2}:\\d{2}"></label>
+      <label>Diapositiva<input type="number" name="slide" min="1" value="${q.slide ?? ''}"></label>
+    </div>
+    <div class="sol-modal-actions">
+      <button type="button" class="sol-btn sol-btn-ghost" data-quiz-cancel>Cancelar</button>
+      <button type="submit" class="sol-btn sol-btn-ghost" data-quiz-save="guardar">Guardar borrador</button>
+      ${item ? '<button type="submit" class="sol-btn" data-quiz-save="aprobar"><i class="fa-solid fa-check"></i> Guardar y aprobar</button>' : ''}
+    </div>
+  </form>`;
+}
+
+function quizItemCard(item) {
+  const [tone, label] = QUIZ_STATUS[item.status];
+  const extra = quizExtras[item.id] || {};
+  const where = [item.minute ? `minuto ${item.minute}` : '', item.slide ? `diapositiva ${item.slide}` : ''].filter(Boolean).join(' · ');
+  const source = item.source === 'propuesta_ia' ? `Propuesta IA${item.edited_by_teacher ? ' · editada' : ''}` : 'Docente';
+  if (quizEditing === item.id) return `<li class="sol-quiz-item editing">${quizForm(item)}${quizExtraHtml(item, extra)}</li>`;
+  return `<li class="sol-quiz-item ${item.status}">
+    <div class="sol-quiz-item-head">${chip(tone, label)}<span class="sol-source">${esc(source)}</span>
+      ${where ? `<span class="sol-muted">${esc(where)}</span>` : ''}</div>
+    <p class="sol-quiz-q">${esc(item.question)}</p>
+    <ol class="sol-quiz-opts">${item.options.map((o, i) => `<li class="${i === item.answer_idx ? 'correct' : ''}">${esc(o)}${i === item.answer_idx ? ' <i class="fa-solid fa-check" aria-label="correcta"></i>' : ''}</li>`).join('')}</ol>
+    ${item.explanation ? `<p class="sol-muted">${esc(item.explanation)}</p>` : ''}
+    ${item.approved_by ? `<p class="sol-muted"><i class="fa-solid fa-user-check"></i> Aprobada por ${esc(item.approved_by)} · ${fmtDateTime(item.approved_at)}</p>` : ''}
+    ${quizExtraHtml(item, extra)}
+    <div class="sol-quiz-actions">
+      ${item.status !== 'aprobada' ? `<button type="button" class="sol-btn sol-btn-sm" data-quiz-action="aprobar" data-id="${item.id}"><i class="fa-solid fa-check"></i> Aprobar</button>` : ''}
+      <button type="button" class="sol-btn sol-btn-sm sol-btn-ghost" data-quiz-edit="${item.id}"><i class="fa-solid fa-pen"></i> Editar</button>
+      ${item.status !== 'descartada' ? `<button type="button" class="sol-btn sol-btn-sm sol-btn-ghost" data-quiz-action="descartar" data-id="${item.id}">Descartar</button>`
+        : `<button type="button" class="sol-btn sol-btn-sm sol-btn-ghost" data-quiz-action="borrador" data-id="${item.id}">Recuperar como borrador</button>`}
+      <button type="button" class="sol-link" data-quiz-assist="alternativas" data-id="${item.id}"><i class="fa-solid fa-wand-magic-sparkles"></i> Sugerir alternativas</button>
+      <button type="button" class="sol-link" data-quiz-assist="revisar" data-id="${item.id}"><i class="fa-solid fa-spell-check"></i> Revisar redacción</button>
+    </div>
+  </li>`;
+}
+
+function quizExtraHtml(item, extra) {
+  let html = '';
+  if (extra.distractors) {
+    html += `<div class="sol-quiz-suggest"><strong>Alternativas sugeridas por la IA</strong> (no se aplican solas):
+      <ul>${extra.distractors.map((d, i) => `<li>${esc(d)} <button type="button" class="sol-link" data-use-distractor="${i}" data-id="${item.id}">Usar</button></li>`).join('')}</ul></div>`;
+  }
+  if (extra.review) {
+    html += `<div class="sol-quiz-suggest"><strong>Revisión de redacción</strong>
+      <ul>${extra.review.issues.map(t => `<li>${esc(t)}</li>`).join('')}</ul>
+      ${extra.review.suggestion && extra.review.suggestion !== item.question ? `<p>Sugerencia: «${esc(extra.review.suggestion)}» <button type="button" class="sol-link" data-use-suggestion data-id="${item.id}">Usar</button></p>` : ''}</div>`;
+  }
+  return html;
+}
+
+function renderQuizEditor() {
+  const q = currentQuiz;
+  qs('#quizEditor').innerHTML = `
+    <h2 class="sol-card-title">Sesión ${q.session.number} – ${esc(q.session.title)}</h2>
+    <div class="sol-keys-summary"><span>${esc(q.counts.text)} · <strong>${q.counts.approved}</strong> aprobadas</span>
+      ${q.counts.active ? chip('activo', 'Quiz activo') : chip('en_riesgo', 'En preparación')}</div>
+    ${q.counts.warning ? `<p class="sol-warning"><i class="fa-solid fa-triangle-exclamation"></i> ${esc(q.counts.warning)}</p>` : ''}
+    <div class="sol-quiz-toolbar">
+      <button type="button" class="sol-btn sol-btn-sm" data-quiz-new><i class="fa-solid fa-plus"></i> Nueva pregunta</button>
+      <button type="button" class="sol-btn sol-btn-sm sol-btn-ghost" data-quiz-assist="proponer"><i class="fa-solid fa-wand-magic-sparkles"></i> Proponer preguntas (IA)</button>
+      <span class="sol-muted">Lo que propone la IA queda en borrador: revísalo y apruébalo una por una.</span>
+    </div>
+    ${quizEditing === 'new' ? `<div class="sol-quiz-item editing">${quizForm(null)}</div>` : ''}
+    <ul class="sol-quiz-bank">${q.items.map(quizItemCard).join('')}</ul>`;
+}
+
+async function openQuiz(sessionId) {
+  currentQuiz = await api(`/tutor/sessions/${sessionId}/quiz`);
+  quizEditing = null;
+  quizExtras = {};
+  renderQuizEditor();
+  qsa('#quizSessions tr').forEach(tr => tr.classList.toggle('selected', Number(tr.dataset.quizSession) === sessionId));
+}
+
+async function refreshQuiz(payload, message) {
+  currentQuiz = payload;
+  renderQuizEditor();
+  await loadQuizSessions();
+  if (message) toast(message, 'ok');
+}
+
+async function quizAction(id, action) {
+  try {
+    const labels = { aprobar: 'Pregunta aprobada.', descartar: 'Pregunta descartada.', borrador: 'Pregunta recuperada como borrador.' };
+    await refreshQuiz(await api(`/tutor/quiz/${id}`, { method: 'PATCH', body: { action } }), labels[action]);
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+async function quizAssist(action, id) {
+  const sid = currentQuiz.session.id;
+  try {
+    const res = await api(`/tutor/sessions/${sid}/quiz/assist`, { method: 'POST', body: { action, item_id: id ?? null } });
+    if (action === 'proponer') return refreshQuiz(res, res.message);
+    quizExtras[id] = { ...quizExtras[id], ...(action === 'alternativas' ? { distractors: res.distractors } : { review: res.review }) };
+    renderQuizEditor();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+function formValues(form) {
+  const data = new FormData(form);
+  const slide = data.get('slide');
+  return {
+    question: data.get('question').trim(),
+    options: [0, 1, 2, 3].map(i => data.get(`option${i}`).trim()),
+    answer_idx: Number(data.get('answer_idx')),
+    explanation: data.get('explanation').trim(),
+    minute: data.get('minute').trim() || null,
+    slide: slide ? Number(slide) : null,
+  };
+}
+
+async function saveQuizForm(form, mode) {
+  const id = form.dataset.quizForm;
+  const body = formValues(form);
+  try {
+    if (id === 'new') {
+      quizEditing = null;
+      await refreshQuiz(await api(`/tutor/sessions/${currentQuiz.session.id}/quiz`, { method: 'POST', body }), 'Pregunta guardada como borrador.');
+    } else {
+      quizEditing = null;
+      const payload = await api(`/tutor/quiz/${id}`, { method: 'PATCH', body: { ...body, action: mode === 'aprobar' ? 'aprobar' : null } });
+      await refreshQuiz(payload, mode === 'aprobar' ? 'Pregunta editada y aprobada.' : 'Cambios guardados.');
+    }
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+function useSuggestion(id, apply) {
+  if (quizEditing !== id) { quizEditing = id; renderQuizEditor(); }
+  apply(qs(`[data-quiz-form="${id}"]`));
+}
+
+document.addEventListener('click', e => {
+  const t = e.target;
+  const row = t.closest('[data-quiz-session]');
+  if (row) return openQuiz(Number(row.dataset.quizSession));
+  if (!currentQuiz) return;
+  if (t.closest('[data-quiz-new]')) { quizEditing = 'new'; return renderQuizEditor(); }
+  if (t.closest('[data-quiz-cancel]')) { quizEditing = null; return renderQuizEditor(); }
+  const edit = t.closest('[data-quiz-edit]');
+  if (edit) { quizEditing = Number(edit.dataset.quizEdit); return renderQuizEditor(); }
+  const action = t.closest('[data-quiz-action]');
+  if (action) return quizAction(Number(action.dataset.id), action.dataset.quizAction);
+  const assist = t.closest('[data-quiz-assist]');
+  if (assist) { assist.disabled = true; return quizAssist(assist.dataset.quizAssist, assist.dataset.id ? Number(assist.dataset.id) : null); }
+  const distractor = t.closest('[data-use-distractor]');
+  if (distractor) {
+    const id = Number(distractor.dataset.id);
+    const text = quizExtras[id].distractors[Number(distractor.dataset.useDistractor)];
+    return useSuggestion(id, form => {
+      const correct = Number(new FormData(form).get('answer_idx'));
+      const used = quizExtras[id].used || [];
+      const slot = [0, 1, 2, 3].find(i => i !== correct && !used.includes(i));
+      if (slot === undefined) return;
+      form.elements[`option${slot}`].value = text;
+      quizExtras[id].used = [...used, slot];
+    });
+  }
+  const suggestion = t.closest('[data-use-suggestion]');
+  if (suggestion) {
+    const id = Number(suggestion.dataset.id);
+    return useSuggestion(id, form => { form.elements.question.value = quizExtras[id].review.suggestion; });
+  }
+});
+document.addEventListener('submit', e => {
+  const form = e.target.closest('[data-quiz-form]');
+  if (!form) return;
+  e.preventDefault();
+  saveQuizForm(form, e.submitter?.dataset.quizSave || 'guardar');
+});
+
 // ---------- navegación ----------
 function showView(name) {
   qsa('.sol-page-tabs button').forEach(b => { const on = b.dataset.view === name; b.classList.toggle('active', on); b.setAttribute('aria-selected', String(on)); });
@@ -302,6 +499,7 @@ function showView(name) {
   if (name === 'cola') loadQueue();
   if (name === 'indicadores') loadCharts();
   if (name === 'tramos') loadKeySessions();
+  if (name === 'quiz') loadQuizSessions();
 }
 
 document.addEventListener('click', e => {
@@ -324,7 +522,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeDrawer();
-  if (e.key === 'Enter' && e.target.matches('tr[data-user], tr[data-session]')) e.target.click();
+  if (e.key === 'Enter' && e.target.matches('tr[data-user], tr[data-session], tr[data-quiz-session]')) e.target.click();
 });
 document.addEventListener('change', e => {
   if (!currentKeys) return;

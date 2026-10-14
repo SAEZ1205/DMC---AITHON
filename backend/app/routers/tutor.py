@@ -14,8 +14,11 @@ from sqlmodel import Session, select
 from .. import config
 from ..db import get_db
 from ..deps import get_course, get_session_or_404, require_tutor
-from ..models import (Alert, Chapter, ClassSession, MicroAnswer, Outbox, RiskSnapshot, User, WithdrawalRequest)
+from ..models import (Alert, Chapter, ClassSession, MicroAnswer, Outbox, QuizItem, RiskSnapshot, User,
+                      WithdrawalRequest)
+from ..services import quiz as quiz_service
 from ..services.attendance import EN_VIVO, RECUPERADA
+from ..services.llm import LLMError
 from ..services.recompute import StudentStatus, compute_course, recompute_course
 from ..services.risk import ACTIVO, EN_ADAPTACION, EN_RIESGO, INACTIVO
 from ..views import STATUS_LABELS, compliance_json, indicators_json, iso
@@ -228,6 +231,9 @@ def sessions(course_id: int, db: Session = Depends(get_db)) -> list[dict]:
     chapters = defaultdict(list)
     for ch in db.exec(select(Chapter).where(Chapter.session_id.in_([s.id for s in rows]))).all():
         chapters[ch.session_id].append(ch)
+    quiz = defaultdict(list)
+    for q in db.exec(select(QuizItem).where(QuizItem.session_id.in_([s.id for s in rows]))).all():
+        quiz[q.session_id].append(q)
     now = config.now()
     out = []
     for s in rows:
@@ -237,7 +243,8 @@ def sessions(course_id: int, db: Session = Depends(get_db)) -> list[dict]:
         out.append({"id": s.id, "number": s.number, "title": s.title, "starts_at": iso(s.starts_at),
                     "dictated": s.ends_at <= now, "processed": s.processed, "chapters": len(chs),
                     "key_ratio": round(sum(c.end - c.start for c in keys) / duration, 3) if duration else 0,
-                    "validated": bool(keys) and all(c.validated for c in keys)})
+                    "validated": bool(keys) and all(c.validated for c in keys),
+                    "real_content": s.real_content, "quiz": quiz_service.bank_counts(quiz.get(s.id, []))})
     return out
 
 
@@ -313,6 +320,119 @@ def patch_chapters(session_id: int, body: ChaptersPatch, db: Session = Depends(g
     db.commit()
     recompute_course(db, s.course_id)
     return _chapters_payload(db, s)
+
+
+# --- quiz del docente ---
+
+MINUTE_PATTERN = r"^(\d{1,2}:)?\d{1,2}:\d{2}$"
+
+
+def _quiz_payload(db: Session, s: ClassSession) -> dict:
+    items = db.exec(select(QuizItem).where(QuizItem.session_id == s.id).order_by(QuizItem.id)).all()
+    ids = {q.approved_by for q in items if q.approved_by}
+    names = {u.id: u.name for u in db.exec(select(User).where(User.id.in_(ids))).all()} if ids else {}
+    order = {quiz_service.DRAFT: 0, quiz_service.APPROVED: 1, quiz_service.DISCARDED: 2}
+    return {"session": {"id": s.id, "number": s.number, "title": s.title},
+            "counts": quiz_service.bank_counts(items),
+            "items": [quiz_service.item_json(q, names) for q in sorted(items, key=lambda q: (order.get(q.status, 3), q.id))]}
+
+
+class QuizItemIn(BaseModel):
+    question: str = Field(min_length=5, max_length=500)
+    options: list[str] = Field(min_length=4, max_length=4)
+    answer_idx: int = Field(ge=0, le=3)
+    explanation: str = Field(default="", max_length=1000)
+    minute: str | None = Field(default=None, pattern=MINUTE_PATTERN)
+    slide: int | None = Field(default=None, ge=1)
+
+
+class QuizItemPatch(BaseModel):
+    question: str | None = Field(default=None, min_length=5, max_length=500)
+    options: list[str] | None = Field(default=None, min_length=4, max_length=4)
+    answer_idx: int | None = Field(default=None, ge=0, le=3)
+    explanation: str | None = Field(default=None, max_length=1000)
+    minute: str | None = Field(default=None, pattern=MINUTE_PATTERN)
+    slide: int | None = Field(default=None, ge=1)
+    action: Literal["aprobar", "descartar", "borrador"] | None = None
+
+
+class AssistIn(BaseModel):
+    action: Literal["proponer", "alternativas", "revisar"]
+    item_id: int | None = None
+
+
+def _clean_options(options: list[str]) -> list[str]:
+    cleaned = [" ".join(o.split()) for o in options]
+    if any(not o for o in cleaned):
+        raise HTTPException(400, "Las 4 alternativas deben tener texto")
+    return cleaned
+
+
+@router.get("/sessions/{session_id}/quiz")
+def quiz_bank(session_id: int, db: Session = Depends(get_db)) -> dict:
+    return _quiz_payload(db, get_session_or_404(db, session_id))
+
+
+@router.post("/sessions/{session_id}/quiz")
+def create_quiz_item(session_id: int, body: QuizItemIn, db: Session = Depends(get_db)) -> dict:
+    s = get_session_or_404(db, session_id)
+    db.add(QuizItem(session_id=s.id, question=body.question.strip(),
+                    options_json=json.dumps(_clean_options(body.options), ensure_ascii=False),
+                    answer_idx=body.answer_idx, explanation=body.explanation.strip(), minute=body.minute,
+                    slide=body.slide, status=quiz_service.DRAFT, source=quiz_service.FROM_TEACHER))
+    db.commit()
+    return _quiz_payload(db, s)
+
+
+@router.patch("/quiz/{item_id}")
+def patch_quiz_item(item_id: int, body: QuizItemPatch, user: User = Depends(require_tutor),
+                    db: Session = Depends(get_db)) -> dict:
+    q = db.get(QuizItem, item_id)
+    if q is None:
+        raise HTTPException(404, "Pregunta no encontrada")
+    changes = body.model_dump(exclude_unset=True, exclude={"action"})
+    if "options" in changes:
+        changes["options_json"] = json.dumps(_clean_options(changes.pop("options")), ensure_ascii=False)
+    edited = False
+    for field, value in changes.items():
+        value = value.strip() if isinstance(value, str) and field != "minute" else value
+        if getattr(q, field) != value:
+            setattr(q, field, value)
+            edited = True
+    if edited:
+        q.edited_by_teacher = True
+    if body.action == "aprobar":
+        q.status, q.approved_by, q.approved_at = quiz_service.APPROVED, user.id, config.now()
+    elif body.action in ("descartar", "borrador"):
+        q.status = quiz_service.DISCARDED if body.action == "descartar" else quiz_service.DRAFT
+        q.approved_by = q.approved_at = None
+    elif edited and q.status == quiz_service.APPROVED:
+        q.approved_by, q.approved_at = user.id, config.now()
+    db.add(q)
+    db.commit()
+    return _quiz_payload(db, get_session_or_404(db, q.session_id))
+
+
+@router.post("/sessions/{session_id}/quiz/assist")
+def quiz_assist(session_id: int, body: AssistIn, db: Session = Depends(get_db)) -> dict:
+    s = get_session_or_404(db, session_id)
+    item = None
+    if body.action != "proponer":
+        item = db.get(QuizItem, body.item_id) if body.item_id else None
+        if item is None or item.session_id != s.id:
+            raise HTTPException(400, "Elige una pregunta de esta sesión")
+    try:
+        if body.action == "proponer":
+            created = quiz_service.propose(db, s)
+            message = (f"La IA propuso {len(created)} {'pregunta' if len(created) == 1 else 'preguntas'} en borrador. "
+                       "Revísalas una por una: no llegan al alumno hasta que las apruebes.") if created \
+                else "Todos los tramos clave ya tienen preguntas; no hay nada nuevo que proponer."
+            return {**_quiz_payload(db, s), "created": [q.id for q in created], "message": message}
+        if body.action == "alternativas":
+            return {"distractors": quiz_service.alternatives(db, s, item)}
+        return {"review": quiz_service.review(db, s, item)}
+    except LLMError as exc:
+        raise HTTPException(502, "El asistente no respondió; intenta de nuevo en un momento.") from exc
 
 
 @router.get("/labels")

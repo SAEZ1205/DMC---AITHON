@@ -14,6 +14,7 @@ from .. import config
 from ..db import get_db
 from ..deps import current_user, get_course, get_session_or_404
 from ..models import Chapter, ChatMessage, QuizAttempt, QuizItem, SessionSummary, TranscriptSegment, User, WatchRange
+from ..services import quiz as quiz_service
 from ..services import summary as summary_service
 from ..services.attendance import live_metrics, overlap, union_ranges
 from ..services.chat import answer_question
@@ -120,9 +121,14 @@ def chat_history(session_id: int, user: User = Depends(current_user), db: Sessio
 @router.get("/sessions/{session_id}/quiz")
 def get_quiz(session_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
     get_session_or_404(db, session_id)
-    items = db.exec(select(QuizItem).where(QuizItem.session_id == session_id)).all()
-    if not items:
-        raise HTTPException(404, "La sesión aún no tiene quiz")
+    items = quiz_service.approved_items(db, session_id)
+    best = db.exec(select(QuizAttempt.score).where(QuizAttempt.user_id == user.id,
+                                                   QuizAttempt.session_id == session_id)).all()
+    state = {"best": max(best) if best else None, "attempts": len(best), "approved": len(items),
+             "required": config.QUIZ_MIN_APPROVED}
+    if not quiz_service.is_active(len(items)):
+        return {**state, "ready": False, "items": [],
+                "message": "Quiz en preparación: el docente aún está revisando las preguntas de esta sesión."}
     rng = random.Random()
     picked = rng.sample(items, min(config.QUIZ_QUESTIONS_PER_ATTEMPT, len(items)))
     out = []
@@ -130,9 +136,7 @@ def get_quiz(session_id: int, user: User = Depends(current_user), db: Session = 
         options = [{"idx": i, "text": t} for i, t in enumerate(json.loads(q.options_json))]
         rng.shuffle(options)
         out.append({"id": q.id, "question": q.question, "options": options})
-    best = db.exec(select(QuizAttempt.score).where(QuizAttempt.user_id == user.id,
-                                                   QuizAttempt.session_id == session_id)).all()
-    return {"items": out, "best": max(best) if best else None, "attempts": len(best)}
+    return {**state, "ready": True, "items": out}
 
 
 class QuizIn(BaseModel):
@@ -145,17 +149,31 @@ def post_quiz(session_id: int, body: QuizIn, user: User = Depends(current_user),
     course = get_course(db, s.course_id)
     if not body.answers or len(body.answers) > config.QUIZ_QUESTIONS_PER_ATTEMPT:
         raise HTTPException(400, f"Envía las respuestas de {config.QUIZ_QUESTIONS_PER_ATTEMPT} preguntas")
-    items = {q.id: q for q in db.exec(select(QuizItem).where(QuizItem.session_id == s.id,
+    if not quiz_service.is_active(len(quiz_service.approved_items(db, s.id))):
+        raise HTTPException(409, "Quiz en preparación: aún no está disponible")
+    items = {q.id: q for q in db.exec(select(QuizItem).where(QuizItem.session_id == s.id, QuizItem.status == "aprobada",
                                                             QuizItem.id.in_(list(body.answers)))).all()}
     if len(items) != len(body.answers):
-        raise HTTPException(400, "Hay preguntas que no pertenecen a esta sesión")
-    results, score = [], 0
+        raise HTTPException(400, "Hay preguntas que no pertenecen al quiz de esta sesión")
+    graded, score = [], 0
     for item_id, chosen in body.answers.items():
         q = items[item_id]
         correct = chosen == q.answer_idx
         score += correct
-        results.append({"id": q.id, "question": q.question, "chosen": chosen, "correct_idx": q.answer_idx,
-                        "correct": correct, "options": json.loads(q.options_json), "explanation": q.explanation})
+        graded.append((q, chosen, correct))
+    passed_before = any(a >= course.quiz_pass_score for a in db.exec(select(QuizAttempt.score).where(
+        QuizAttempt.user_id == user.id, QuizAttempt.session_id == s.id)).all())
+    passed = score >= course.quiz_pass_score
+    reveal = passed or passed_before
+    results = []
+    for q, chosen, correct in graded:
+        row = {"id": q.id, "question": q.question, "chosen": chosen, "correct": correct,
+               "options": json.loads(q.options_json)}
+        if reveal:
+            row.update({"correct_idx": q.answer_idx, "explanation": q.explanation})
+        elif not correct:
+            row["review"] = quiz_service.review_hint(q)
+        results.append(row)
     now = config.now()
     db.add(QuizAttempt(user_id=user.id, session_id=s.id, score=score, answers_json=json.dumps(body.answers), at=now))
     db.commit()
@@ -164,6 +182,6 @@ def post_quiz(session_id: int, body: QuizIn, user: User = Depends(current_user),
     if user.role == config.STUDENT_ROLE:
         st = recompute_course(db, course.id, now, user_ids=[user.id]).get(user.id)
         c = next((x for x in st.compliances if x.session_id == s.id), None) if st else None
-    return {"score": score, "total": len(results), "passed": score >= course.quiz_pass_score,
+    return {"score": score, "total": len(results), "passed": passed, "explanations": reveal,
             "pass_score": course.quiz_pass_score, "results": results,
             "compliance": compliance_json(c, now) if c else None, "banner": banner(s.number, c, course)}

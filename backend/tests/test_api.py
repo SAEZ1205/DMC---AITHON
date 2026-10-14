@@ -30,7 +30,8 @@ def seed(db):
     db.add_all(chapters)
     for i in range(8):
         db.add(QuizItem(session_id=s.id, question=f"Pregunta {i}", options_json=json.dumps(["a", "b", "c", "d"]),
-                        answer_idx=i % 4, explanation=f"Explicación [0{i}:00]"))
+                        answer_idx=i % 4, explanation=f"Explicación [0{i}:00]", minute=f"0{i}:30", slide=i + 1,
+                        status="aprobada"))
     # Conectada de 10:00 a 60:00, con un corte de 1 min (conexión) a los 30:00.
     db.add(ZoomInterval(session_id=s.id, user_id=student.id, join_at=START + timedelta(minutes=10),
                         leave_at=START + timedelta(minutes=30)))
@@ -63,7 +64,11 @@ def test_quiz_hides_answers_and_recovery_flow(db):
 
         wrong = {item["id"]: 99 for item in quiz["items"]}
         res = client.post(f"/api/sessions/{sid}/quiz", headers=headers, json={"answers": wrong}).json()
-        assert res["score"] == 0 and not res["passed"]
+        assert res["score"] == 0 and not res["passed"] and not res["explanations"]
+        for r in res["results"]:
+            assert "correct_idx" not in r and "explanation" not in r
+            n = int(r["question"].split()[-1])
+            assert r["review"]["text"] == f"Revisa el minuto [0{n}:30] (diapositiva {n + 1})."
 
         keys = [[600, 3600], [7200, 10800]]
         assert client.post("/api/watch", headers=headers, json={"session_id": sid, "ranges": keys}).json()["key_coverage"] == 1.0
@@ -72,7 +77,8 @@ def test_quiz_hides_answers_and_recovery_flow(db):
             n = int(item["question"].split()[-1])
             right[item["id"]] = n % 4
         res = client.post(f"/api/sessions/{sid}/quiz", headers=headers, json={"answers": right}).json()
-        assert res["score"] == 5 and res["passed"]
+        assert res["score"] == 5 and res["passed"] and res["explanations"]
+        assert all(r["explanation"].startswith("Explicación") and "correct_idx" in r for r in res["results"])
         assert res["compliance"]["status"] == "recuperada"
         assert res["banner"]["tone"] == "ok"
         assert client.get(f"/api/me/micro-question?course_id=1", headers=headers).json()["question"]

@@ -280,6 +280,11 @@ function quizIntro(best, attempts) {
 async function loadQuizIntro() {
   try {
     const q = await api(`/sessions/${sessionId}/quiz`);
+    if (!q.ready) {
+      qs('#tab-quiz').innerHTML = `<div class="sol-quiz-intro"><i class="fa-solid fa-hourglass-half"></i>
+        <p><strong>Quiz en preparación.</strong> El docente aún está revisando las preguntas de esta sesión. Mientras tanto puedes avanzar con los tramos clave.</p></div>`;
+      return;
+    }
     quizIntro(q.best, q.attempts);
   } catch (e) {
     qs('#tab-quiz').innerHTML = `<p class="sol-muted">${esc(e.message)}</p>`;
@@ -309,12 +314,15 @@ async function showQuizResult(res) {
   qs('#tab-quiz').innerHTML = `
     <div class="sol-quiz-result ${res.passed ? 'ok' : 'bad'}">
       <strong>${res.score}/${res.total}</strong>
-      <span>${res.passed ? '¡Aprobaste el quiz!' : `Necesitas ${res.pass_score} correctas. Revisa las explicaciones e inténtalo de nuevo.`}</span>
+      <span>${res.passed ? '¡Aprobaste el quiz!' : `Necesitas ${res.pass_score} correctas. Repasa los minutos indicados e inténtalo de nuevo.`}</span>
     </div>
     <ol class="sol-quiz-review">${res.results.map(r => `<li class="${r.correct ? 'ok' : 'bad'}">
       <p><i class="fa-solid fa-${r.correct ? 'check' : 'xmark'}"></i> ${esc(r.question)}</p>
-      ${r.correct ? '' : `<p class="sol-muted">Respuesta correcta: <strong>${esc(r.options[r.correct_idx])}</strong></p>`}
-      <p class="sol-explain">${linkTimestamps(esc(r.explanation))}</p></li>`).join('')}</ol>
+      ${res.explanations && !r.correct ? `<p class="sol-muted">Respuesta correcta: <strong>${esc(r.options[r.correct_idx])}</strong></p>` : ''}
+      ${res.explanations ? `<p class="sol-explain">${linkTimestamps(esc(r.explanation))}</p>` : ''}
+      ${r.review ? `<p class="sol-explain"><i class="fa-solid fa-rotate-left"></i> ${linkTimestamps(esc(r.review.text))}</p>` : ''}
+    </li>`).join('')}</ol>
+    ${res.explanations ? '' : '<p class="sol-muted">Las explicaciones completas aparecen cuando apruebes el quiz.</p>'}
     <div id="microNotice"></div>
     <button type="button" class="sol-btn sol-btn-ghost" id="quizAgain">Intentar de nuevo</button>`;
   qs('#quizAgain').addEventListener('click', startQuiz);

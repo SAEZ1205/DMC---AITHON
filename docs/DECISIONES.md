@@ -22,6 +22,14 @@ Referencia: [`SOLUCION_DMC_CURSOR.md`](SOLUCION_DMC_CURSOR.md) (v1) y [`SOLUCION
 - **Sesiones de muestra:** conservan los capítulos de la referencia `data/sample/session_demo/processed.json` (revisados por el equipo, fuente «muestra»), porque el historial simulado de la cohorte se generó contra esos tramos clave; cambiarlos alteraría los cumplimientos ya calculados. El algoritmo se prueba también sobre la transcripción de muestra (`tests/test_chaptering.py`).
 - `scripts/chapters_report.py 23` imprime la tabla de capítulos para revisar los límites contra el video.
 
+## Quiz del docente
+
+- **Banco de la sesión 23:** la sesión real no traía `quiz.json`. El equipo escribió 8 preguntas a partir de las diapositivas y la transcripción, cada una con su minuto real y su diapositiva, en `backend/data/zoom/23/quiz.json` (fuera de Git). 5 cargan aprobadas (fuente «docente») para que el alumno de la demo pueda aprobar el quiz, y 3 quedan en borrador como «propuesta IA» para mostrar en el tablero cómo el docente revisa y aprueba. **Está pendiente la revisión del docente real.**
+- **Sesiones de muestra:** su banco de la referencia carga aprobado y con fuente «docente», para que el historial de la cohorte siga igual.
+- La explicación completa se muestra cuando el alumno aprueba en ese intento o ya había aprobado antes; si no, cada pregunta fallada muestra solo «Revisa el minuto [mm:ss] (diapositiva n)».
+- Editar una pregunta ya aprobada la mantiene aprobada y actualiza quién y cuándo la aprobó. No existe «aprobar todas».
+- En modo simulado, «Proponer preguntas» arma borradores con las viñetas de las diapositivas de cada tramo clave sin preguntas; «Sugerir alternativas» toma viñetas de otros capítulos y «Revisar redacción» aplica reglas fijas (alternativas repetidas, correcta mucho más larga, negaciones, palabras de la respuesta en el enunciado). Con Kimi, las tres usan `prompts/quiz_assist.md`.
+
 ## Reloj simulado
 
 `app/config.py` expone `now()` / `set_now()`. Si `SIM_NOW` está definido en `backend/.env`, esa fecha es la «hora actual» del sistema (plazos de 7 días, escalamiento a 48 h, demo del mes 3). Vacío = hora real del servidor. El endpoint `GET/POST /api/admin/clock` permite mover el reloj en caliente sin reiniciar. Los tests dejan `SIM_NOW` vacío y usan `set_now()` por caso.

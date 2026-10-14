@@ -1,6 +1,8 @@
 """Contenido de una sesión sin LLM: capítulos, tramos clave y banco de quiz inicial (spec v2, 3.2–3.4).
 
-- Sesión con contenido real (data/zoom/<n>/): capítulos por diapositivas o TextTiling (chaptering.py).
+- Sesión con contenido real (data/zoom/<n>/): capítulos por diapositivas o TextTiling (chaptering.py) y,
+  si existe, el banco inicial de `quiz.json` (cada pregunta puede traer `status` y `source`; por defecto,
+  aprobada y del docente).
 - Sesión de muestra: capítulos y banco de la referencia `processed.json` junto al VTT de muestra, ya revisados
   por el equipo, para que el historial simulado de la cohorte siga midiendo los mismos tramos clave.
 """
@@ -83,6 +85,9 @@ def rebuild(db: Session, session: ClassSession) -> dict:
     else:
         drafts = build_chapters(db, session)
         store_chapters(db, session, drafts)
+        quiz_file = Path(session.transcript_path).with_name("quiz.json") if session.transcript_path else None
+        if quiz_file and quiz_file.exists():
+            store_quiz(db, session, json.loads(quiz_file.read_text(encoding="utf-8")))
     session.processed = True
     db.add(session)
     db.commit()

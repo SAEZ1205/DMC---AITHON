@@ -71,6 +71,7 @@ COURSE_DEFAULTS = {
 }
 QUIZ_QUESTIONS_PER_ATTEMPT = 5
 QUIZ_BANK_SIZE = 8
+QUIZ_MIN_APPROVED = 5  # el quiz se activa para el alumno con al menos 5 preguntas aprobadas por el docente
 MIN_GRADE = 14
 
 # --- Zoom ---

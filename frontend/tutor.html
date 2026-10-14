@@ -14,6 +14,7 @@
     <button type="button" data-view="cola" role="tab"><i class="fa-solid fa-headset"></i> Cola de nivel 2 <span id="queueCount"></span></button>
     <button type="button" data-view="indicadores" role="tab"><i class="fa-solid fa-chart-column"></i> Indicadores</button>
     <button type="button" data-view="tramos" role="tab"><i class="fa-solid fa-key"></i> Tramos clave</button>
+    <button type="button" data-view="quiz" role="tab"><i class="fa-solid fa-clipboard-question"></i> Quiz</button>
   </nav>
   <section class="content-card" id="view-alumnos">
     <div class="sol-toolbar">
@@ -40,6 +41,13 @@
       <div><h2 class="sol-card-title">Sesiones</h2><div class="sol-table-wrap sol-keys-table"><table class="sol-table">
         <thead><tr><th>Sesión</th><th>Tramos clave</th><th>Estado</th></tr></thead><tbody id="keySessions"></tbody></table></div></div>
       <div id="keyEditor"><p class="sol-muted">Elige una sesión para revisar sus capítulos y marcar los tramos clave.</p></div>
+    </div>
+  </section>
+  <section class="content-card hidden" id="view-quiz">
+    <div class="sol-grid-2">
+      <div><h2 class="sol-card-title">Sesiones</h2><div class="sol-table-wrap sol-keys-table"><table class="sol-table">
+        <thead><tr><th>Sesión</th><th>Banco</th><th>Estado</th></tr></thead><tbody id="quizSessions"></tbody></table></div></div>
+      <div id="quizEditor"><p class="sol-muted">Elige una sesión para revisar su banco de preguntas. Solo las preguntas aprobadas llegan al alumno.</p></div>
     </div>
   </section>
   <aside id="drawer" class="sol-drawer" aria-hidden="true" aria-label="Detalle del alumno"></aside>
