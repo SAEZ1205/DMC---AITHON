@@ -330,8 +330,22 @@ def _focus(ev: Evidence, question: str, corpus: Corpus) -> str:
     return " y ".join(f"«{surf.get(t, t)}»" for t in ranked) or "ese tema"
 
 
+HINT_BLOCK_LINES = 6
+
+
+def _slide_focus(ev: Evidence) -> str:
+    """Texto de la diapositiva sin rótulos de línea («Clave:», «Ejemplos:»), recortado al bloque
+    donde aparece lo que preguntó el alumno si lo encuentra."""
+    lines = [re.sub(r"^\w+:\s+", "", ln.strip(" •-–\t")) for ln in ev.slide.text.splitlines()]
+    lines = [ln for ln in lines if ln and ln != ev.slide.title]
+    hits = [i for i, ln in enumerate(lines) if set(stems(ln)) & set(ev.query)]
+    if hits and len(hits) < len(lines):
+        return "\n".join(lines[hits[0]:hits[0] + HINT_BLOCK_LINES])
+    return f"{ev.slide.title}\n" + "\n".join(lines)
+
+
 def _hint_terms(ev: Evidence, corpus: Corpus, k: int = 2) -> list[str]:
-    source = f"{ev.slide.title} {ev.slide.text}" if ev.slide else " ".join(s.text for s in ev.window)
+    source = _slide_focus(ev) if ev.slide else " ".join(s.text for s in ev.window)
     surf = _surface(source)
     counts: dict[str, int] = {}
     for t in stems(source):

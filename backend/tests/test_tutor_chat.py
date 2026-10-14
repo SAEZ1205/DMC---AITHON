@@ -161,6 +161,20 @@ def test_thread_of_other_user_is_rejected(db):
     assert res.status_code == 400
 
 
+def test_hint_skips_line_labels_and_stays_in_the_asked_block():
+    text = ("Tres familias de nodos\nTrigger\nPregunta: ¿cuándo empieza?\nEjemplos: Manual, Schedule, Webhook.\n"
+            "Clave: sin trigger, nada corre solo.\nAcción\nPregunta: ¿qué hace?\nEjemplos: HTTP Request, Gmail.\n"
+            "Clave: lee o escribe en otro sistema.\nLógica\nPregunta: ¿por dónde sigue?\nEjemplos: If, Switch, Merge.\n"
+            "Clave: decide y ordena el camino.")
+    unit = tutor_chat.Unit(1, "clase.pdf", "slide", 21, "Tres familias de nodos", text)
+    toks = tutor_chat.stems(text)
+    corpus = tutor_chat.Corpus([], [unit], [], [toks], {t: 1 for t in toks})
+    ev = tutor_chat.Evidence(found=True, query=tutor_chat.query_stems("¿Qué es un nodo trigger?"), slide=unit)
+    terms = tutor_chat._hint_terms(ev, corpus)
+    assert terms and not {"Pregunta", "Ejemplos", "Clave"} & set(terms)
+    assert set(terms) <= {"empieza", "Manual", "Schedule", "Webhook", "corre", "solo", "cuándo", "nada"}
+
+
 def test_cap_words_keeps_final_question():
     text = " ".join(["Frase larga de relleno."] * 30) + " ¿Qué opinas?"
     out = tutor_chat.cap_words(text)
