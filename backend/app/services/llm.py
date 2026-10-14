@@ -97,8 +97,7 @@ class MicroOut(BaseModel):
 
 # --- cupo del proveedor ---
 
-# Tokens de salida por tipo de respuesta (incluyen el razonamiento de gpt-oss). El proveedor descuenta
-# max_tokens del cupo por minuto al recibir la solicitud, así que conviene no pedir de más.
+# Tokens de salida por tipo de respuesta (incluyen el razonamiento de gpt-oss).
 MAX_OUTPUT = {"TutorOut": 1024, "MicroOut": 400, "QuizProposalOut": 3000, "DistractorsOut": 800, "ReviewOut": 1000}
 DEFAULT_MAX_OUTPUT = 1024
 
@@ -300,7 +299,8 @@ def complete(messages: list[dict], model: str | None = None, json_mode: bool = F
         kwargs["extra_body"] = {"include_reasoning": False}
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
-    reserved = estimate_tokens("".join(m["content"] for m in messages)) + 20 * len(messages) + max_tokens
+    # Groq descuenta los tokens usados, no max_tokens: se reserva la mitad y se corrige con el uso real.
+    reserved = estimate_tokens("".join(m["content"] for m in messages)) + 20 * len(messages) + max_tokens // 2
     BUDGET.acquire(reserved, config.LLM_MAX_WAIT_S)
     try:
         raw = _create(**kwargs)

@@ -31,7 +31,7 @@ Edita `backend/.env`:
 | `LLM_REASONING_EFFORT` | `low` (por defecto): el razonamiento de gpt-oss cuenta como tokens del cupo. |
 | `LLM_RPM` / `LLM_RPD` / `LLM_TPM` / `LLM_TPD` | Cupo del proveedor. Por defecto el plan gratuito de Groq para gpt-oss-120b: 30 / 1000 / 8000 / 200000. |
 | `LLM_SAFETY` | Fracción del cupo que usa la app (0.85). |
-| `LLM_MAX_WAIT_S` | Segundos que una solicitud espera cupo antes de responder con la simulación (4). |
+| `LLM_MAX_WAIT_S` | Segundos que una solicitud espera cupo antes de responder con la simulación (6). |
 | `LLM_MOCK` | `1` fuerza mock aunque haya key. |
 | `SIM_NOW` | Reloj de la demo (`2026-10-12T19:00:00`). Vacío = hora real. |
 | `DISABLE_SCHEDULER` | `1` desactiva el recálculo horario (útil en desarrollo). |
@@ -75,7 +75,7 @@ El tutor del chat, las micro-preguntas y el asistente del quiz usan `openai/gpt-
 Para que la demo no se caiga:
 
 - Cada llamada reserva cupo antes de salir (85 % de cada límite; los tokens se recargan de forma continua, como en Groq) y se ajusta con los encabezados `x-ratelimit-*` de la respuesta.
-- Si no hay cupo en 4 s, o Groq responde 429 (la app se pausa lo que indique `retry-after`), o hay un error o timeout (25 s), el servicio responde al instante con su **simulación** (la misma lógica del modo mock). El alumno nunca ve un error.
+- Si no hay cupo en 6 s, o Groq responde 429 (la app se pausa lo que indique `retry-after`), o hay un error o timeout (25 s), el servicio responde al instante con su **simulación** (la misma lógica del modo mock). El alumno nunca ve un error.
 - Responder un intento usa una sola llamada (evalúa y sigue con el nivel siguiente) y el prompt del tutor lleva ~1K tokens de contexto.
 - Las respuestas validadas se guardan en caché 6 h por prompt exacto: repetir la pregunta de la demo no gasta cupo.
 - Estado en vivo (staff): `GET /api/admin/llm` → modo, cupo disponible del minuto, uso del día y veces que se respondió con la simulación.

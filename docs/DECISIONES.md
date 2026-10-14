@@ -76,9 +76,9 @@ Valor de demo: `2026-10-12T19:00:00` (sesión 24 recién dictada; plazos de las 
 - Prompts en español en `backend/app/prompts/`. Salida en modo JSON validada con Pydantic y un reintento. `reasoning_effort=low` y `include_reasoning=false`: gpt-oss razona antes de responder y esos tokens cuentan en el cupo.
 - **Cupo del plan gratuito:** 30 solicitudes/min, 1.000/día, 8.000 tokens/min y 200.000/día. El límite que manda es el de tokens por minuto: un turno del tutor gasta ~1.500–2.000 tokens.
 - **Para que la demo no se caiga** (`services/llm.py`):
-  - Control de cupo propio al 85 % de cada límite. Los tokens por minuto se modelan como un balde que se recarga de forma continua (como Groq); se reserva prompt estimado + `max_tokens` y se ajusta con los tokens reales y con `x-ratelimit-remaining-tokens`.
+  - Control de cupo propio al 85 % de cada límite. Los tokens por minuto se modelan como un balde que se recarga de forma continua (como Groq); se reserva el prompt estimado + la mitad de `max_tokens` (Groq descuenta los tokens usados, no `max_tokens`) y se ajusta con los tokens reales y con `x-ratelimit-remaining-tokens`.
   - `max_tokens` por tipo de salida (tutor 1024, micro 400, propuesta de quiz 3000, alternativas 800, revisión 1000), timeout de 25 s y sin reintentos automáticos del SDK.
-  - Sin cupo en 4 s, ante un 429 (pausa lo que diga `retry-after`) o ante error/timeout, el servicio responde con su simulación. El tutor, las micro-preguntas y las tres acciones del quiz ya no devuelven 502.
+  - Sin cupo en 6 s, ante un 429 (pausa lo que diga `retry-after`) o ante error/timeout, el servicio responde con su simulación. El tutor, las micro-preguntas y las tres acciones del quiz ya no devuelven 502.
   - Responder un intento hace **una** llamada (evaluación + ayuda del nivel siguiente); antes eran dos.
   - Contexto del tutor recortado a 6 fragmentos (los más cercanos al minuto citado), 3 diapositivas de 50 palabras y 4 mensajes de historial: ~1K tokens.
   - Caché de respuestas validadas por prompt exacto (6 h, 256 entradas).
