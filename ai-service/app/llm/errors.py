@@ -67,6 +67,11 @@ class LLMContentNotAuthorized(LLMError):
     public_message = "El contenido de la clase no está autorizado para enviarse a este proveedor externo."
 
 
+class LLMDeadlineExceeded(LLMTimeout):
+    """Se agotó el tiempo TOTAL de la pregunta (no el de una llamada): no se inicia otra llamada al proveedor."""
+    code = "llm_timeout"
+
+
 class LLMUnmaskedContent(LLMContentNotAuthorized):
     """La barrera final detectó un nombre conocido que el enmascarado no pudo ocultar: la petición NO se envía."""
     code = "llm_unmasked_content"

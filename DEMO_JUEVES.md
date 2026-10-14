@@ -95,7 +95,10 @@ Por defecto la demo corre en **DEMO** (sin red). La integración con NVIDIA est�
    2. `scripts\inspect_nvidia_payload.py` y lee `ai-service\data\real\payload_nvidia_preview.md`: son las solicitudes exactas que saldrían
       (sin clave; nada se envía). Debe decir **0 coincidencias residuales**.
    3. Recuerda que es una revisión heurística: no garantiza anonimización completa (ver "Límites" en ese informe).
-5. **Para volver a DEMO:** borra o comenta `LLM_PROVIDER` y `LLM_LIVE_AUTHORIZED` en `.env` y reinicia.
+5. **Kimi tarda:** Kimi K3 razona antes de responder y puede tardar de 20 s a más de 1 minuto. El chat muestra "Kimi está preparando tu respuesta…" y
+   permite una sola pregunta a la vez. Espera hasta ~2,5 minutos como máximo (`NVIDIA_TIMEOUT_SECONDS=120`, `NVIDIA_TOTAL_TIMEOUT_SECONDS=150`); si no responde,
+   verás la respuesta DEMO marcada "NO la generó Kimi". Tras actualizar el código **reinicia el backend** y recarga la página con Ctrl+F5.
+6. **Para volver a DEMO:** borra o comenta `LLM_PROVIDER` y `LLM_LIVE_AUTHORIZED` en `.env` y reinicia.
 
 Límites y costos: el acceso de prueba de NVIDIA es gratuito para prototipos pero **con límites de uso** (no publicados en la documentación consultada); un `429`
 significa límite alcanzado: el sistema espera y no reintenta. No es un servicio para producción.

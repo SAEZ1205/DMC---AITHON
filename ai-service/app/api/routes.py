@@ -67,6 +67,7 @@ def health(request: Request):
         provider_status=getattr(service.provider, "provider_status", lambda: None)(),
         class_content_authorized=config.allow_class_content if getattr(service.provider, "name", "") == "nvidia-kimi" else None,
         egress_guard=getattr(service.provider, "egress_guard_status", lambda: None)(),
+        limits=getattr(service.provider, "limits", lambda: None)(),
     )
     ok = storage.status == "ok"
     body = HealthResponse(

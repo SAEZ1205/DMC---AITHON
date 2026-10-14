@@ -22,6 +22,8 @@ Diferencias deliberadas con `KimiProvider` (Moonshot), que NO se modifica:
 PRIVACIDAD: NVIDIA advierte que el servicio de prueba puede registrar entradas y salidas. Nunca se envía el video, ni la
 transcripción completa, ni identificadores de estudiantes.
 """
+import contextlib
+import contextvars
 import json
 import logging
 import time
@@ -36,7 +38,7 @@ from app.llm.base import ResponseKind, TutorContext, TutorReply
 from app.llm.demo_provider import DemoProvider
 from app.llm.errors import (
     LLMAuthError, LLMContentNotAuthorized, LLMError, LLMMalformedResponse, LLMRateLimited, LLMRequestRejected,
-    LLMTimeout, LLMUnavailable, LLMUnmaskedContent,
+    LLMDeadlineExceeded, LLMTimeout, LLMUnavailable, LLMUnmaskedContent,
 )
 from app.llm.kimi_provider import KimiProvider, LiveCallBudget, SummaryPiece
 from app.llm.verification import parse_model_json
@@ -52,6 +54,13 @@ EFFORTS = ("low", "high", "max")
 PAUSE_SECONDS = {401: 300.0, 402: 300.0, 403: 300.0, 404: 300.0, 429: 60.0}
 MAX_PAUSE_SECONDS = 3600.0
 PROBE_PROMPT = "Explica brevemente qué es una variable en programación."   # texto ficticio e inocuo
+MIN_CALL_SECONDS = 2.0            # si al tiempo total le quedan menos segundos, ni se intenta otra llamada
+CONNECT_SECONDS = 10.0            # conectar con NVIDIA nunca debería tardar más: falla rápido y degrada a DEMO
+
+# Reloj de la pregunta en curso y tope de la llamada actual. Son ContextVar (no atributos) para que dos preguntas concurrentes
+# no se pisen: cada petición HTTP del servidor corre en su propio hilo/contexto. El valor lleva el id del proveedor dueño.
+_DEADLINE: "contextvars.ContextVar[Optional[Tuple[int, float, float]]]" = contextvars.ContextVar("nvidia_deadline", default=None)
+_CALL_CAP: "contextvars.ContextVar[Optional[float]]" = contextvars.ContextVar("nvidia_call_cap", default=None)
 
 
 def validate_base_url(url: str) -> str:
@@ -120,6 +129,56 @@ class NvidiaKimiProvider(KimiProvider):
         self._private: Set[Tuple[str, str]] = set(private_lessons)
         self._privacy: Optional[PrivacyFilter] = None
         self.egress_stats: Dict[str, int] = {"requests_checked": 0, "messages_remasked": 0, "blocked": 0}
+
+    # ====================================================== tiempos de espera
+    @contextlib.contextmanager
+    def request_scope(self):
+        """
+        Abre el reloj TOTAL de una pregunta del estudiante: todas las llamadas que haga dentro (guardián + tutor) comparten
+        `total_timeout_seconds`, y cuando se agota no se inicia otra. Si ya hay un reloj abierto por este proveedor, manda el externo.
+        """
+        total = self.config.total_timeout_seconds
+        current = _DEADLINE.get()
+        if total <= 0 or (current is not None and current[0] == id(self)):
+            yield
+            return
+        token = _DEADLINE.set((id(self), self._clock() + total, total))
+        try:
+            yield
+        finally:
+            _DEADLINE.reset(token)
+
+    def _effective_timeout(self) -> Tuple[httpx.Timeout, float]:
+        """Timeout de ESTA llamada = mínimo entre el de la configuración, el tope del guardián (si aplica) y lo que queda del total."""
+        limit = float(self.config.timeout_seconds)
+        cap = _CALL_CAP.get()
+        if cap:
+            limit = min(limit, float(cap))
+        scope = _DEADLINE.get()
+        if scope is not None and scope[0] == id(self):
+            remaining = scope[1] - self._clock()
+            if remaining < MIN_CALL_SECONDS:
+                raise self._soft(LLMDeadlineExceeded(
+                    "tiempo total agotado antes de la llamada", None,
+                    public_message=f"Se agotó el tiempo máximo para esta respuesta ({scope[2]:g} s) y no se consultó a NVIDIA de nuevo."))
+            limit = min(limit, remaining)
+        limit = max(limit, MIN_CALL_SECONDS)
+        return httpx.Timeout(connect=min(CONNECT_SECONDS, limit), read=limit, write=min(15.0, limit), pool=min(CONNECT_SECONDS, limit)), limit
+
+    def classify_relevance(self, question: str, lesson_title: str, hints: Sequence[str]):
+        """El guardián es una llamada pequeña con su propio tope: si tarda, se usa la heurística y el tutor conserva su tiempo."""
+        token = _CALL_CAP.set(self.config.guardian_timeout_seconds)
+        try:
+            return super().classify_relevance(question, lesson_title, hints)
+        finally:
+            _CALL_CAP.reset(token)
+
+    def limits(self) -> Dict[str, Any]:
+        """Límites activos para /health (sin credenciales)."""
+        cfg = self.config
+        return {"timeout_seconds": cfg.timeout_seconds, "total_timeout_seconds": cfg.total_timeout_seconds,
+                "guardian_timeout_seconds": cfg.guardian_timeout_seconds, "max_output_tokens": max(cfg.max_output_tokens, MIN_COMPLETION_TOKENS),
+                "reasoning_effort": cfg.reasoning_effort if cfg.reasoning_effort in EFFORTS else "low"}
 
     # =================================================== privacidad del contenido
     def attach_privacy(self, privacy: Optional[PrivacyFilter]) -> None:
@@ -253,11 +312,12 @@ class NvidiaKimiProvider(KimiProvider):
                 tokens = max(int(tokens), MIN_COMPLETION_TOKENS)
             body[self.config.max_tokens_param] = tokens
         url = f"{self.config.base_url}/chat/completions"
+        timeout, seconds = self._effective_timeout()
         try:
-            response = self._client.post(url, json=body, headers=self._headers(), timeout=self.config.timeout_seconds)
+            response = self._client.post(url, json=body, headers=self._headers(), timeout=timeout)
         except httpx.TimeoutException as exc:
-            raise self._soft(LLMTimeout(f"timeout tras {self.config.timeout_seconds}s", None,
-                                        public_message=f"NVIDIA no respondió en {self.config.timeout_seconds:g} s.")) from exc
+            raise self._soft(LLMTimeout(f"timeout tras {seconds:g}s", None,
+                                        public_message=f"NVIDIA no respondió en {seconds:g} s.")) from exc
         except httpx.HTTPError as exc:
             raise self._soft(LLMUnavailable(f"fallo de red: {type(exc).__name__}", None,
                                             public_message="No se pudo conectar con NVIDIA (red o DNS).")) from exc

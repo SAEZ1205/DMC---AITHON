@@ -29,6 +29,17 @@ def _env_int(name: str, default: int, minimum: int = 0) -> int:
         return default
 
 
+def _env_float(name: str, default: float, minimum: float, maximum: float) -> float:
+    """Número decimal acotado: un valor ausente, ilegible o absurdo nunca produce una espera infinita ni nula."""
+    try:
+        value = float(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+    if value != value:          # NaN
+        return default
+    return min(max(value, minimum), maximum)
+
+
 @dataclass(frozen=True)
 class AcademicConfig:
     """Parámetros de quizzes, micro-pregunta y telemetría (Etapa 4)."""
@@ -68,6 +79,8 @@ class LLMConfig:
     max_tokens_param: str = "max_completion_tokens"   # o "max_tokens", según lo que acepte el endpoint
     json_mode: bool = False                           # enviar response_format=json_object (no documentado para NVIDIA: apagado)
     allow_class_content: bool = False                 # ¿se puede enviar la transcripción de la clase REAL a este proveedor?
+    total_timeout_seconds: float = 150.0              # tope TOTAL por pregunta del estudiante (guardián + tutor); 0 = solo el de cada llamada
+    guardian_timeout_seconds: float = 25.0            # el guardián es una llamada pequeña: si tarda, se usa la heurística y no se bloquea al tutor
 
     def __repr__(self) -> str:          # nunca imprimir la clave
         return (f"LLMConfig(provider={self.provider!r}, model={self.model!r}, base_url={self.base_url!r}, "
@@ -109,8 +122,12 @@ class Settings:
     NVIDIA_API_KEY: str = os.getenv("NVIDIA_API_KEY", "").strip()
     NVIDIA_MODEL: str = os.getenv("NVIDIA_MODEL", "moonshotai/kimi-k3").strip()
     NVIDIA_BASE_URL: str = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1").strip().rstrip("/")
-    NVIDIA_MAX_OUTPUT_TOKENS: int = _env_int("NVIDIA_MAX_OUTPUT_TOKENS", 1200, minimum=16)
-    NVIDIA_TIMEOUT_SECONDS: float = float(os.getenv("NVIDIA_TIMEOUT_SECONDS", "60"))
+    # Kimi K3 siempre razona y esos tokens cuentan contra el límite de salida: a ~6 tokens/s (medido: 258 tokens en 42 s) un tope de 1200
+    # tardaría ~200 s. 700 cabe en el timeout por llamada (120 s) y deja margen sobre el mínimo de 512 que aplica el proveedor.
+    NVIDIA_MAX_OUTPUT_TOKENS: int = _env_int("NVIDIA_MAX_OUTPUT_TOKENS", 700, minimum=16)
+    NVIDIA_TIMEOUT_SECONDS: float = _env_float("NVIDIA_TIMEOUT_SECONDS", 120.0, minimum=5.0, maximum=300.0)
+    NVIDIA_TOTAL_TIMEOUT_SECONDS: float = _env_float("NVIDIA_TOTAL_TIMEOUT_SECONDS", 150.0, minimum=5.0, maximum=600.0)
+    NVIDIA_GUARDIAN_TIMEOUT_SECONDS: float = _env_float("NVIDIA_GUARDIAN_TIMEOUT_SECONDS", 25.0, minimum=3.0, maximum=120.0)
     NVIDIA_MAX_TOKENS_PARAM: str = os.getenv("NVIDIA_MAX_TOKENS_PARAM", "max_completion_tokens").strip()
     NVIDIA_JSON_MODE: bool = _env_bool("NVIDIA_JSON_MODE", False)
     NVIDIA_ALLOW_CLASS_CONTENT: bool = _env_bool("NVIDIA_ALLOW_CLASS_CONTENT", False)
@@ -185,6 +202,8 @@ class Settings:
             max_tokens_param=self.NVIDIA_MAX_TOKENS_PARAM,
             json_mode=self.NVIDIA_JSON_MODE,
             allow_class_content=self.NVIDIA_ALLOW_CLASS_CONTENT,
+            total_timeout_seconds=self.NVIDIA_TOTAL_TIMEOUT_SECONDS,
+            guardian_timeout_seconds=self.NVIDIA_GUARDIAN_TIMEOUT_SECONDS,
         )
 
     def llm_config(self) -> LLMConfig:

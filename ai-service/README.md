@@ -4,6 +4,24 @@ Carpeta reservada para el módulo de inteligencia artificial y sus APIs.
 
 La idea es mantener esta lógica separada del frontend para que ambos equipos puedan trabajar sin pisarse archivos. Cuando el servicio esté listo, el frontend se conectará mediante endpoints definidos por el equipo de IA/backend.
 
+## Etapa 6.2: tiempos de espera de Kimi K3 (NVIDIA)
+
+**Causa del `llm_timeout: NVIDIA no respondió en 60 s`:** el valor por defecto de `NVIDIA_TIMEOUT_SECONDS` era 60 s (el `.env` no lo definía) y la
+pregunta pedía hasta 1200 tokens de salida. Kimi K3 siempre razona y esos tokens cuentan; con el ritmo medido (258 tokens en 42 s, ~6 tokens/s) 1200 tokens
+pueden tardar ~200 s. No hay otros límites en el camino: ni el servicio de chat, ni el servidor ni el navegador cortaban a los 60 s, y la pregunta hace
+**una sola** llamada al modelo (el guardián heurístico la da por pertinente; el guardián LLM solo se consulta si la heurística duda).
+
+- `NVIDIA_TIMEOUT_SECONDS=120` (por llamada, 5-300 s) · `NVIDIA_TOTAL_TIMEOUT_SECONDS=150` (por pregunta, guardián + tutor, 5-600 s) ·
+  `NVIDIA_GUARDIAN_TIMEOUT_SECONDS=25` (3-120 s) · `NVIDIA_MAX_OUTPUT_TOKENS=700` (el proveedor aplica un mínimo de 512). Cualquier valor ilegible o
+  fuera de rango se acota: ningún ajuste puede producir una espera infinita. Se ven en `/health` → `llm.limits`.
+- Un solo reloj por pregunta (`NvidiaKimiProvider.request_scope`, usado por `TutorService.chat`): cuando se agota no se inicia otra llamada. No hay reintentos.
+- Si NVIDIA no responde a tiempo, la respuesta sale en **DEMO con las mismas citas** y el aviso "Kimi no participó en esta respuesta".
+- Frontend (`demo-n8n.html`): "Kimi está preparando tu respuesta…" con contador de segundos, aviso si pasan 15 s, una sola pregunta a la vez (botón, sugerencias y
+  Enter), cancelación del navegador a los 190 s y la etiqueta "Respuesta DEMO · NO la generó Kimi" cuando hubo fallback.
+- **Pruebas herméticas:** `tests/conftest.py` fuerza DEMO y bloquea toda conexión que no sea local en cada prueba. Antes, una prueba con la configuración por
+  defecto heredaba el `.env` real (LIVE) y podía intentar una solicitud real a NVIDIA.
+- No es un servicio para producción: el tier gratuito de NVIDIA puede tardar más en horas de mucha demanda. Una opción futura es transmitir la respuesta (`stream`).
+
 ## Etapa 6.1: privacidad antes de usar la clase real con NVIDIA
 
 `NVIDIA_ALLOW_CLASS_CONTENT` sigue en `false`: esta etapa **prepara** la activación, no la hace.

@@ -9,6 +9,42 @@ LESSON_1 = "clase-01-introduccion-sql"
 LESSON_2 = "clase-02-uniones-y-agrupacion"
 
 
+LOOPBACK = {"127.0.0.1", "::1", "localhost", "0.0.0.0", ""}
+
+
+@pytest.fixture(autouse=True)
+def hermetic_environment(monkeypatch):
+    """
+    Aísla CADA prueba del entorno real del equipo. `app.config` carga ai-service/.env al importarse: si el dueño activó NVIDIA
+    (LLM_PROVIDER=nvidia, LLM_LIVE_AUTHORIZED=true, clave real), una prueba con la configuración por defecto haría una solicitud
+    REAL. Por eso: (1) la configuración por defecto vuelve a DEMO sin claves; (2) solo se permiten conexiones a la propia máquina
+    (el bucle de eventos de Windows y los servidores de prueba locales las necesitan) y la resolución DNS de nombres externos falla.
+    Las pruebas que necesitan otra configuración la pasan de forma explícita (llm_config=...) o con monkeypatch propio.
+    """
+    import socket
+    from app.config import settings
+
+    for name, value in (("LLM_PROVIDER", "demo"), ("LLM_API_KEY", ""), ("LLM_LIVE_AUTHORIZED", False),
+                        ("NVIDIA_API_KEY", ""), ("NVIDIA_ALLOW_CLASS_CONTENT", False)):
+        monkeypatch.setattr(settings, name, value)
+
+    real_connect, real_getaddrinfo = socket.socket.connect, socket.getaddrinfo
+
+    def guarded_connect(self, address, *args, **kwargs):
+        host = address[0] if isinstance(address, (tuple, list)) and address else None
+        if host is not None and str(host) not in LOOPBACK:
+            raise RuntimeError("las pruebas no pueden conectarse a la red externa (hermetic_environment)")
+        return real_connect(self, address, *args, **kwargs)
+
+    def guarded_getaddrinfo(host, *args, **kwargs):
+        if host is not None and str(host) not in LOOPBACK:
+            raise RuntimeError("las pruebas no pueden resolver nombres externos (hermetic_environment)")
+        return real_getaddrinfo(host, *args, **kwargs)
+
+    monkeypatch.setattr(socket.socket, "connect", guarded_connect)
+    monkeypatch.setattr(socket, "getaddrinfo", guarded_getaddrinfo)
+
+
 @pytest.fixture(scope="session")
 def retriever() -> KnowledgeRetriever:
     """Recuperador cargado con el material DEMO real del repositorio."""

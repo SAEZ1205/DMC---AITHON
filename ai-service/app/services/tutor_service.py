@@ -9,6 +9,7 @@ Principios
   * La sesión pertenece a un único (estudiante, curso, clase); cualquier otra combinación
     se rechaza antes de leer mensajes.
 """
+import contextlib
 import logging
 import re
 from dataclasses import dataclass, field, replace
@@ -105,6 +106,12 @@ class TutorService:
 
     # ---------------------------------------------------------------- chat
     def chat(self, req: ChatRequest, idem_scope: Optional[str] = None) -> ChatResponse:
+        # Un solo reloj para toda la pregunta (guardián + tutor): el proveedor externo no puede hacer esperar más del tope total.
+        scope = getattr(self.provider, "request_scope", None)
+        with (scope() if scope else contextlib.nullcontext()):
+            return self._chat(req, idem_scope)
+
+    def _chat(self, req: ChatRequest, idem_scope: Optional[str] = None) -> ChatResponse:
         course_name = self._require_course(req.course_id)
         if req.lesson_id is not None and self.retriever.get_lesson(req.course_id, req.lesson_id) is None:
             raise LessonNotFound(req.course_id, req.lesson_id)
@@ -266,7 +273,7 @@ class TutorService:
         if reply.fallback_reason:
             return (
                 f"Esta respuesta la generó el modo DEMO porque el proveedor LIVE ({self.provider.name}) "
-                f"no pudo responder ({reply.fallback_reason})."
+                f"no pudo responder ({reply.fallback_reason}). Kimi no participó en esta respuesta."
             )
         return None
 

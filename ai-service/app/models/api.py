@@ -45,6 +45,8 @@ class LLMHealth(BaseModel):
         default=None, description="Estado operativo del proveedor externo (ok | paused con el motivo preciso); sin credenciales")
     class_content_authorized: Optional[bool] = Field(
         default=None, description="NVIDIA: ¿está autorizado enviar contenido de la clase real? (NVIDIA_ALLOW_CLASS_CONTENT)")
+    limits: Optional[Dict[str, Any]] = Field(
+        default=None, description="NVIDIA: tiempos de espera (por llamada, total y guardián) y tope de tokens activos")
     egress_guard: Optional[Dict[str, Any]] = Field(
         default=None, description="NVIDIA: barrera final de nombres (activa, cuántos nombres conoce, mensajes re-enmascarados, envíos bloqueados); nunca los nombres")
 

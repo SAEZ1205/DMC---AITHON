@@ -21,6 +21,12 @@
   const player = $("player");
   let lesson = null;            // { course_id, lesson_id, ... } del backend
   let sessionId = null;
+  let busy = false;             // hay una pregunta en curso: no se aceptan envíos duplicados
+
+  // El backend limita la respuesta de Kimi a ~150 s por pregunta (ver la guía del jueves). El navegador espera un poco más que él y,
+  // si aun así no hubo respuesta, cancela la solicitud en lugar de esperar para siempre.
+  const CHAT_TIMEOUT_MS = 190000;
+  const SLOW_HINT_MS = 15000;
 
   function fmt(seconds) {
     const s = Math.max(0, Math.floor(seconds));
@@ -156,8 +162,11 @@
     }
 
     const meta = el("div", "meta");
-    meta.append(el("span", "demo-pill" + (reply.mode === "LIVE" ? " live" : ""),
-      reply.mode === "LIVE" ? `Respuesta: LIVE · ${reply.provider}${reply.model ? " · " + reply.model : ""}` : "Respuesta: DEMO"));
+    const live = reply.mode === "LIVE";
+    const label = live ? `Respuesta: LIVE · ${reply.provider}${reply.model ? " · " + reply.model : ""}`
+      : (reply.fallback_used ? "Respuesta DEMO · NO la generó Kimi" : "Respuesta: DEMO");
+    meta.append(el("span", "demo-pill" + (live ? " live" : (reply.fallback_used ? " warn" : "")), label));
+    if (reply.fallback_used) box.classList.add("fallback");
     if (reply.guardian) {
       const g = reply.guardian;
       const names = { relevant: "pertinente", not_relevant: "no pertinente", uncertain: "pertinencia incierta" };
@@ -165,35 +174,72 @@
         `Guardián ${g.is_llm ? "LLM" : "heurístico (reglas)"}: ${names[g.label] || g.label}`));
     }
     box.append(meta);
-    if (reply.provider_notice) box.append(el("div", "demo-note", reply.provider_notice));
+    if (reply.provider_notice) box.append(el("div", "demo-note warn", reply.provider_notice));
     if (reply.response_type === "no_evidence") box.append(el("div", "demo-note", "Sin evidencia suficiente en la transcripción: no se inventan citas."));
     if (reply.telemetry_notice) $("telemetryNotice").textContent = reply.telemetry_notice;
   }
 
+  /* Estado de espera: mientras Kimi razona (puede tardar más de un minuto) se muestra qué ocurre y cuánto lleva. */
+  function startPending(live) {
+    const box = el("div", "demo-msg tutor pending");
+    box.setAttribute("role", "status");
+    const row = el("div", "demo-pending-row");
+    const clock = el("span", "demo-pending-clock", "0 s");
+    clock.setAttribute("aria-hidden", "true");           // el contador no se anuncia cada segundo a los lectores de pantalla
+    row.append(el("span", "demo-spinner"), el("span", "demo-pending-text", live ? "Kimi está preparando tu respuesta…" : "Buscando en la clase…"), clock);
+    const hint = el("div", "demo-note", "");
+    box.append(row, hint);
+    $("messages").append(box);
+    $("messages").scrollTop = $("messages").scrollHeight;
+    const started = Date.now();
+    const timer = setInterval(() => {
+      const elapsed = Date.now() - started;
+      clock.textContent = `${Math.floor(elapsed / 1000)} s`;
+      if (live && elapsed >= SLOW_HINT_MS) {
+        hint.textContent = "Kimi razona antes de responder y puede tardar hasta 2 minutos. No hace falta volver a enviar la pregunta.";
+      }
+    }, 1000);
+    return { stop() { clearInterval(timer); box.remove(); } };
+  }
+
+  function setBusy(on) {
+    busy = on;
+    $("sendBtn").disabled = on;
+    document.querySelectorAll("#suggestions button").forEach((b) => { b.disabled = on; });
+    $("chatForm").setAttribute("aria-busy", on ? "true" : "false");
+  }
+
   async function ask(question) {
     const text = question.trim();
-    if (!text) return;
+    if (!text || busy) return false;         // una pregunta a la vez: evita duplicar solicitudes (y gasto) mientras Kimi responde
+    setBusy(true);
     addMessage("user", text);
-    const sendBtn = $("sendBtn");
-    sendBtn.disabled = true;
-    const pending = addMessage("tutor", "Buscando en la clase…");
+    const pending = startPending(Boolean(lesson) && lesson.mode === "LIVE");
+    const controller = new AbortController();
+    const abortTimer = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
     try {
       const reply = await api("/api/chat", {
         method: "POST",
+        signal: controller.signal,
         headers: { "Content-Type": "application/json", "Idempotency-Key": (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2)) },
         body: JSON.stringify({
           student_id: STUDENT_ID, course_id: lesson.course_id, lesson_id: lesson.lesson_id, session_id: sessionId, message: text,
         }),
       });
       sessionId = reply.session_id;
-      pending.remove();
+      pending.stop();
       renderTutor(reply);
     } catch (error) {
-      pending.remove();
-      addMessage("tutor", `No pude responder: ${error.message}`, "oos");
+      pending.stop();
+      const timedOut = error && error.name === "AbortError";
+      addMessage("tutor", timedOut
+        ? `La respuesta tardó más de ${Math.round(CHAT_TIMEOUT_MS / 1000)} s y se canceló. Puedes volver a preguntar.`
+        : `No pude responder: ${error.message}`, "oos");
     } finally {
-      sendBtn.disabled = false;
+      clearTimeout(abortTimer);
+      setBusy(false);
     }
+    return true;
   }
 
   function setupChat() {
@@ -206,8 +252,10 @@
     });
     $("chatForm").addEventListener("submit", (event) => {
       event.preventDefault();
+      if (busy) return;                      // el texto escrito se conserva para cuando termine la respuesta en curso
       const input = $("question");
       const q = input.value;
+      if (!q.trim()) return;
       input.value = "";
       ask(q);
     });
