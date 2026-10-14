@@ -10,7 +10,11 @@ backend/tests
 backend/data/dmc.db*
 backend/data/cohort
 backend/data/processed
-backend/data/zoom
+backend/data/zoom/*
+!backend/data/zoom/23
+backend/data/zoom/**/*.mp4
 backend/data/sample/**/*.mp4
 ai-service
 docs
+.agents
+skills-lock.json

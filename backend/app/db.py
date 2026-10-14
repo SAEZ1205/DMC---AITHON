@@ -43,7 +43,9 @@ def make_engine(url: str):
 
         return eng
     # Postgres serverless (Neon): conexiones que se cortan por inactividad; pool chico por instancia.
-    return create_engine(url, pool_pre_ping=True, pool_size=3, max_overflow=2, pool_recycle=300)
+    # El pooler de Neon es PgBouncer en modo transacción: sin sentencias preparadas del lado del servidor.
+    return create_engine(url, pool_pre_ping=True, pool_size=3, max_overflow=2, pool_recycle=300,
+                         connect_args={"prepare_threshold": None})
 
 
 _restore_snapshot()
