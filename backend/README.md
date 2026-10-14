@@ -54,15 +54,14 @@ Para generar solo la cohorte:
 python scripts/generate_cohort.py --students 30 --weeks 26 --seed 42
 ```
 
-## Procesar una sesión con el LLM
+## Procesar una sesión (sin LLM)
 
 ```powershell
-python scripts/process_session.py 1          # una sesión
+python scripts/process_session.py 23         # una sesión
 python scripts/process_session.py --all      # todas
-python scripts/process_session.py 1 --force  # ignora caché
 ```
 
-Si existe `data/zoom/<session_id>/` se ingesta primero. El resultado queda en la base y en `data/processed/` (caché por hash de la transcripción).
+Si existe `data/zoom/<session_id>/` se ingesta primero (participantes, chat, transcripción, video y, con `transcript.txt` o `materials/`, el contenido real). Luego se recalculan capítulos (diapositivas + TextTiling), tramos clave y el borrador inicial del quiz; los capítulos quedan sin validar. El LLM solo se usa en línea: tutor del chat, micro-preguntas y «Sugerir preguntas» del quiz.
 
 ## Arrancar
 
@@ -82,17 +81,17 @@ Identidad de demo: header `X-User-Id` (o `?uid=` en beacons). Los botones del lo
 pytest -q
 python scripts/evaluate.py
 python scripts/check_attendance.py
-python scripts/eval_chat.py --session 1
+python scripts/eval_chat.py                  # sesión real (23); trabaja sobre una copia de dmc.db
 ```
 
 Metas (sección 12 de la especificación):
 
 | Criterio | Cómo se verifica |
 |---|---|
-| Pytest | `pytest` → 29 tests |
+| Pytest | `pytest` → 73 tests |
 | Diagnóstico | `evaluate.py`: recall ≥ 80 % (≥ 14 días), falsas alarmas ≤ 20 %, adaptados no en riesgo |
 | Asistencia efectiva | `check_attendance.py`: 5 perfiles + 1 recuperación fuera de plazo coinciden con el motor |
-| Chat 16/20 | `eval_chat.py` (con key real mide el modelo; con mock da ~19/20) |
+| Chat tutor | `eval_chat.py`: minuto citado a ±90 s ≥ 16/20, primer turno con pregunta y ≤ 90 palabras 20/20, quiz revelado 0/5, fuera de la clase 5/5 (mock: 16 · 20 · 0 · 5) |
 | Alertas 48 h | `tests/test_alerts.py` con reloj simulado |
 | Páginas existentes | sin cambios en `dmc.css` / `styles.css` / `enhancements.css` / `fine-tuning.css` |
 
@@ -112,7 +111,7 @@ Reloj fijo: `SIM_NOW=2026-10-12T19:00:00`. Si tocaste la base durante pruebas, v
    - Contadores: ~18 activos, 6 en adaptación, 6 en riesgo, 1 alerta de nivel 2.  
    - Tabla con motivos en lenguaje claro; filtrar por estado.  
    - **Cola de nivel 2** (p. ej. Fabricio Garrido) → registrar contacto (canal, resultado, cerrar).  
-   - Pestaña **Tramos clave** → validar los de una sesión.
+   - Pestaña **Tramos clave** → validar los de una sesión; debajo, «Temas que más cuestan» (hilos simulados del tutor).
 
 3. **Vista móvil**  
    DevTools ≤ 390 px en `progress.html` / `recording.html` / `tutor.html`: menú hamburguesa, avance y recuperación usables.

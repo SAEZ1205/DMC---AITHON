@@ -32,6 +32,24 @@ STAFF = [
     ("Jorge Salas", "jorge.salas@dmc.pe", "coordinador"),
 ]
 HISTORY_DAYS = 28  # recálculo diario previo a SIM_NOW para que alertas y escalamientos tengan historia
+REAL_QUESTIONS = [  # preguntas simuladas de la cohorte sobre la sesión real
+    "¿En qué se diferencia n8n de Zapier?",
+    "No entiendo qué es self-hosted",
+    "¿Para qué sirve Docker si ya tengo n8n en la nube?",
+    "¿Qué es un contenedor?",
+    "¿Por qué hay que instalar WSL?",
+    "Me sale error de virtualización al abrir Docker",
+    "¿Cómo levanto n8n con docker run?",
+    "¿Qué pasa con mis workflows si cierro la terminal?",
+    "¿Cómo creo la credencial de Google Sheets?",
+    "¿Qué es un trigger?",
+    "¿Cómo funciona el nodo If?",
+    "¿Qué devuelve la API del clima?",
+    "No entiendo cómo leer el JSON de la API",
+    "¿Cómo armo una expresión con los datos del nodo anterior?",
+    "¿Cómo envío el correo con Gmail desde n8n?",
+    "¿Qué es una API key?",
+]
 
 
 def reset_database() -> None:
@@ -65,6 +83,50 @@ def main() -> None:
 
         generate(args.students, args.weeks, args.seed, DEFAULT_START, config.COHORT_DIR)
     seed()
+
+
+def seed_threads(db, sessions, real_sessions: set[int], now: datetime) -> None:
+    """Hilos del tutor para las preguntas de contenido de la cohorte simulada («Temas que más cuestan»).
+    El capítulo sale de la evidencia de la pregunta en la clase; si no aparece (preguntas de muestra en una sesión
+    real), se asigna un tramo clave. El nivel alcanzado es simulado: cada capítulo tiene su propia dificultad."""
+    import random
+
+    from sqlmodel import select
+
+    from app.models import Chapter, ChatMessage, ChatThread, WatchRange
+    from app.services import tutor_chat
+
+    rng = random.Random(23)
+    for s in sessions:
+        chapters = db.exec(select(Chapter).where(Chapter.session_id == s.id).order_by(Chapter.start)).all()
+        keys = [c for c in chapters if c.is_key and not c.logistics]
+        if not keys:
+            continue
+        if s.number in real_sessions:
+            viewers = sorted(set(db.exec(select(WatchRange.user_id).where(WatchRange.session_id == s.id)).all()))
+            span = max(1.0, (now - s.ends_at).total_seconds())
+            for text in REAL_QUESTIONS:
+                db.add(ChatMessage(user_id=rng.choice(viewers), session_id=s.id, role="user", text=text,
+                                   kind="contenido", at=s.ends_at + timedelta(seconds=rng.uniform(0, span))))
+            db.flush()
+        difficulty = {c.id: rng.random() for c in chapters}
+        corpus = tutor_chat.corpus_of(db, s)
+        questions = db.exec(select(ChatMessage).where(ChatMessage.session_id == s.id, ChatMessage.role == "user",
+                                                      ChatMessage.kind == "contenido")).all()
+        for m in questions:
+            ev = tutor_chat.find_evidence(corpus, chapters, m.text)
+            chapter = ev.chapter if ev.found and ev.chapter else rng.choice(keys)
+            d = difficulty[chapter.id]
+            level = rng.choices([1, 2, 3, 4], weights=[1.0 - d, 0.6, 0.2 + d, 0.1 + d])[0]
+            correct = level < 4 and rng.random() < 0.6
+            thread = ChatThread(user_id=m.user_id, session_id=s.id, question=m.text, chapter_id=chapter.id,
+                                level=level, attempts=max(0, level - 1) + correct,
+                                evaluation="correcta" if correct else None, closed=True, created_at=m.at)
+            db.add(thread)
+            db.flush()
+            m.thread_id = thread.id
+            db.add(m)
+    db.commit()
 
 
 def seed() -> None:
@@ -164,6 +226,7 @@ def seed() -> None:
         for s in sessions.values():
             content.rebuild(db, s)
         now = config.now()
+        seed_threads(db, list(sessions.values()), real_sessions, now)
         for days in range(HISTORY_DAYS, 0, -1):
             day = datetime.combine((now - timedelta(days=days)).date(), time(23, 59))
             if day >= first:

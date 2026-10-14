@@ -94,6 +94,11 @@ const TS = /\[(\d{1,2}):(\d{2})(?::(\d{2}))?\]/g;
 export function tsToSeconds(a, b, c) {
   return c !== undefined ? Number(a) * 3600 + Number(b) * 60 + Number(c) : Number(a) * 60 + Number(b);
 }
+// «1 sesión», «2 sesiones»; sin `many` agrega «s».
+export function plural(n, one, many = `${one}s`) {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
 export function linkTimestamps(html) {
   return html.replace(TS, (m, a, b, c) => `<button type="button" class="sol-ts" data-seek="${tsToSeconds(a, b, c)}">${m.slice(1, -1)}</button>`);
 }

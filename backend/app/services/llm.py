@@ -38,20 +38,23 @@ class LLMError(RuntimeError):
 
 # --- esquemas de salida ---
 
-class ChapterOut(BaseModel):
-    start: float
-    end: float
-    title: str
-    summary: str = ""
-    is_key: bool = False
+class Citation(BaseModel):
+    sec: float
+    label: str = ""
 
 
-class ChaptersOut(BaseModel):
-    chapters: list[ChapterOut] = Field(min_length=3)
+class SlideRef(BaseModel):
+    file: str = ""
+    n: int
 
 
-class SummaryOut(BaseModel):
-    summary: str
+class TutorOut(BaseModel):
+    reply: str
+    level: int = Field(ge=1, le=4)
+    citations: list[Citation] = Field(default_factory=list)
+    slides: list[SlideRef] = Field(default_factory=list)
+    asks_student: bool = True
+    evaluation: Literal["correcta", "parcial", "incorrecta"] | None = None
 
 
 class QuizItemOut(BaseModel):
@@ -59,10 +62,6 @@ class QuizItemOut(BaseModel):
     options: list[str] = Field(min_length=4, max_length=4)
     answer_idx: int = Field(ge=0, le=3)
     explanation: str = ""
-
-
-class QuizOut(BaseModel):
-    items: list[QuizItemOut] = Field(min_length=5)
 
 
 class QuizProposalItem(QuizItemOut):

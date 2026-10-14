@@ -152,6 +152,24 @@
 .sol-msg-assistant { align-self: flex-start; background: #f1f5f7; border-bottom-left-radius: 3px; }
 .sol-chat-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-weight: 600; color: #0b6e8c; text-decoration: none; }
 .sol-chat-link:hover { text-decoration: underline; }
+.sol-msg-head { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.sol-level { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.sol-eval { font-size: 11px; font-weight: 600; border-radius: 10px; padding: 1px 8px; }
+.sol-eval-ok { background: var(--sol-green-bg); color: var(--sol-green); }
+.sol-eval-warn { background: var(--sol-amber-bg); color: var(--sol-amber); }
+.sol-eval-bad { background: var(--sol-red-bg); color: var(--sol-red); }
+.sol-slide-ref { margin-top: 6px; font-size: 13px; }
+.sol-slide-ref summary { cursor: pointer; color: var(--blue); font-weight: 500; }
+.sol-slide-ref p { margin: 6px 0 0; padding: 6px 8px; background: #fff; border-radius: 8px; white-space: pre-line; color: #455a64; }
+.sol-chat-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.sol-chat-reply { display: flex; gap: 6px; margin-top: 8px; }
+.sol-chat-reply input { flex: 1; min-width: 0; border: 1px solid #ced4da; border-radius: 16px; padding: 5px 10px; font: inherit; font-size: 13px; }
+.sol-chat-reply input:focus { outline: 2px solid #9cc7e6; border-color: var(--blue); }
+.sol-hard-topics { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+.sol-hard-topics h3 { font-size: 15px; }
+.sol-hard-topics ul { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-direction: column; gap: 8px; }
+.sol-hard-topics li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; }
+.sol-hard-topics small { flex-basis: 100%; padding-left: 2px; }
 .sol-msg.error { background: var(--sol-red-bg); color: #8f2727; }
 .sol-msg.sol-micro { border: 1px solid var(--cyan); background: #effbfd; }
 .sol-micro-form textarea { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font: inherit; font-size: 13px; resize: vertical; }

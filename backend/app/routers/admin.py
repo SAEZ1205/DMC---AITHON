@@ -13,7 +13,8 @@ from .. import config
 from ..db import get_db
 from ..deps import get_session_or_404, require_tutor
 from ..models import Course
-from ..services.processing import process_session
+from ..services import content
+from ..services.real_session import apply_to_session, has_real_content
 from ..services.recompute import recompute_course
 from ..services.zoom_ingest import ingest_session
 
@@ -27,11 +28,10 @@ def ingest(session_id: int, process: bool = True, db: Session = Depends(get_db))
     if not folder.exists():
         raise HTTPException(404, f"No existe la carpeta data/zoom/{s.id}/ con los archivos de Zoom")
     report = ingest_session(db, s, folder)
+    if has_real_content(folder):
+        apply_to_session(db, s, folder)
     db.commit()
-    processed = None
-    if process:
-        result = process_session(db, s)
-        processed = {"chapters": len(result["chapters"]), "quiz": len(result["quiz"])}
+    processed = content.rebuild(db, s) if process else None
     recompute_course(db, s.course_id)
     return {"ingest": asdict(report), "processed": processed}
 

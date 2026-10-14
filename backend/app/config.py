@@ -17,7 +17,6 @@ ZOOM_DIR = DATA_DIR / "zoom"
 COHORT_DIR = DATA_DIR / "cohort"
 SAMPLE_DIR = DATA_DIR / "sample"
 SAMPLE_SESSION_DIR = SAMPLE_DIR / "session_demo"
-PROCESSED_DIR = DATA_DIR / "processed"
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
 # En Vercel el bundle es de solo lectura: la base generada en el build se copia a /tmp al arrancar
@@ -36,10 +35,14 @@ LLM_MODEL_FAST = os.getenv("LLM_MODEL_FAST", "kimi-k2.6")
 LLM_CONTEXT_TOKENS = int(os.getenv("LLM_CONTEXT_TOKENS", "256000"))
 LLM_TEMPERATURE = os.getenv("LLM_TEMPERATURE")  # vacío = valor por defecto del proveedor
 LLM_MOCK = os.getenv("LLM_MOCK", "").strip() in {"1", "true", "yes"} or not LLM_API_KEY or LLM_API_KEY == "..."
-CHAT_CONTEXT_RATIO = 0.70
-CHAT_TOP_FRAGMENTS = 8
-CHAT_HISTORY_TURNS = 6
-CHAT_NOT_FOUND = "Eso no se vio en esta clase. Puedes consultarlo con el docente o en el grupo del curso."
+CHAT_TOP_FRAGMENTS = 10  # fragmentos de transcripción por turno del tutor
+CHAT_TOP_UNITS = 4  # unidades de material por turno
+CHAT_HISTORY_TURNS = 6  # últimos mensajes del hilo que ve el LLM
+CHAT_MAX_WORDS = 90
+CHAT_EVIDENCE_MIN = 0.6  # peso (IDF) de la pregunta que debe aparecer en la clase para no ser «fuera de la clase»
+CHAT_QUIZ_SIMILARITY = 0.5  # BM25 normalizado frente a una pregunta aprobada del quiz
+CHAT_QUIZ_MAX_LEVEL = 2
+CHAT_NOT_FOUND = "Eso no se vio en esta clase. Puedes consultarlo con el docente o con tu Asistente Académico."
 
 # --- Reloj simulado ---
 _SIM_NOW_ENV = os.getenv("SIM_NOW", "").strip()

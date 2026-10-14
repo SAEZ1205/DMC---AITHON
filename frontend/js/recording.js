@@ -208,8 +208,31 @@ function bubble(role, html, extraClass = '') {
   qs('#chatLog').scrollTop = qs('#chatLog').scrollHeight;
   return el;
 }
-const assistantHtml = (text, link) => `<div class="sol-prose">${renderMarkdown(text)}</div>` +
-  (link ? `<a class="sol-chat-link" href="${esc(link.href)}"><i class="fa-solid fa-arrow-right"></i> ${esc(link.label)}</a>` : '');
+const LEVELS = { 1: 'Ubicar', 2: 'Pista', 3: 'Paso guiado', 4: 'Explicación' };
+const EVALUATIONS = { correcta: ['ok', 'Respuesta correcta'], parcial: ['warn', 'Respuesta parcial'], incorrecta: ['bad', 'Aún no'] };
+
+// m: {text|answer, link, level, evaluation, slides, buttons, asks_student, thread_id, closed}
+function assistantHtml(m, live = false) {
+  const text = m.answer ?? m.text;
+  const head = [
+    m.level ? `<span class="sol-level">Nivel ${m.level} · ${LEVELS[m.level]}</span>` : '',
+    m.evaluation ? `<span class="sol-eval sol-eval-${EVALUATIONS[m.evaluation][0]}">${EVALUATIONS[m.evaluation][1]}</span>` : '',
+  ].join('');
+  const slides = (m.slides || []).map(s => `<details class="sol-slide-ref"><summary><i class="fa-regular fa-file-powerpoint"></i>
+    Diapositiva ${s.n}${s.title ? ` · ${esc(s.title)}` : ''}</summary><p>${esc(s.text || '')}</p></details>`).join('');
+  const link = m.link ? `<a class="sol-chat-link" href="${esc(m.link.href)}"><i class="fa-solid fa-arrow-right"></i> ${esc(m.link.label)}</a>` : '';
+  const open = live && m.thread_id && !m.closed;
+  const actions = open && m.buttons?.length ? `<div class="sol-chat-actions">${m.buttons.map(b =>
+    `<button type="button" class="sol-btn sol-btn-ghost sol-btn-sm" data-action="${b.action}" data-thread="${m.thread_id}">${esc(b.label)}</button>`).join('')}</div>` : '';
+  const reply = open && m.asks_student ? `<form class="sol-chat-reply" data-thread="${m.thread_id}">
+    <input type="text" maxlength="1000" placeholder="Responde con tus palabras…" aria-label="Tu respuesta">
+    <button type="submit" class="sol-btn sol-btn-sm">Responder</button></form>` : '';
+  return `${head ? `<div class="sol-msg-head">${head}</div>` : ''}<div class="sol-prose">${renderMarkdown(text)}</div>${slides}${link}${actions}${reply}`;
+}
+
+function clearTurnControls() {
+  qsa('#chatLog .sol-chat-actions, #chatLog .sol-chat-reply').forEach(el => el.remove());
+}
 
 async function initChat() {
   const keys = keyChapters().slice(0, 3);
@@ -218,31 +241,49 @@ async function initChat() {
   qsa('.sol-suggestion').forEach(b => b.addEventListener('click', () => { qs('#chatInput').value = b.textContent; ask(); }));
   const history = await api(`/sessions/${sessionId}/chat`).catch(() => []);
   if (!history.length) {
-    bubble('assistant', assistantHtml(`Hola, ${user.name.split(' ')[0]}. Respondo solo con lo que se dijo en esta clase y te indico el minuto para que vayas directo. ¿Qué quieres repasar?`));
+    bubble('assistant', assistantHtml({ text: `Hola, ${user.name.split(' ')[0]}. Te ayudo a repasar esta clase: te digo en qué minuto se explica, te doy pistas y te pregunto para que lo expliques con tus palabras. ¿Qué quieres repasar?` }));
   }
-  history.forEach(m => bubble(m.role, m.role === 'assistant' ? assistantHtml(m.text, m.link) : esc(m.text)));
+  const lastAssistant = history.map(m => m.role).lastIndexOf('assistant');
+  history.forEach((m, i) => bubble(m.role, m.role === 'assistant' ? assistantHtml(m, i === lastAssistant) : esc(m.text)));
   qs('#chatForm').addEventListener('submit', e => { e.preventDefault(); ask(); });
   qs('#chatInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(); } });
+  qs('#chatLog').addEventListener('click', e => {
+    const b = e.target.closest('[data-action]');
+    if (b) send({ thread_id: Number(b.dataset.thread), action: b.dataset.action }, b.textContent.trim());
+  });
+  qs('#chatLog').addEventListener('submit', e => {
+    const form = e.target.closest('.sol-chat-reply');
+    if (!form) return;
+    e.preventDefault();
+    const message = form.querySelector('input').value.trim();
+    if (message) send({ thread_id: Number(form.dataset.thread), action: 'answer', message }, message);
+  });
 }
 
-async function ask() {
-  const input = qs('#chatInput');
-  const message = input.value.trim();
-  if (!message) return;
-  input.value = '';
-  bubble('user', esc(message));
+async function send(body, shown) {
+  clearTurnControls();
+  bubble('user', esc(shown));
   const typing = bubble('assistant', '<span class="sol-typing"><i></i><i></i><i></i></span>', 'typing');
   qs('#chatSend').disabled = true;
   try {
-    const res = await api(`/sessions/${sessionId}/chat`, { method: 'POST', body: { message } });
+    const res = await api(`/sessions/${sessionId}/chat`, { method: 'POST', body });
     typing.remove();
-    bubble('assistant', assistantHtml(res.answer, res.link));
+    const el = bubble('assistant', assistantHtml(res, true));
+    el.querySelector('.sol-chat-reply input')?.focus({ preventScroll: true });
   } catch (e) {
     typing.remove();
     bubble('assistant', `<p>${esc(e.message)}</p>`, 'error');
   } finally {
     qs('#chatSend').disabled = false;
   }
+}
+
+function ask() {
+  const input = qs('#chatInput');
+  const message = input.value.trim();
+  if (!message) return;
+  input.value = '';
+  send({ message }, message);
 }
 
 async function offerMicroQuestion() {
@@ -258,7 +299,7 @@ async function offerMicroQuestion() {
     await api('/me/micro-question', { method: 'POST', body: { course_id: detail.session.course_id, question, answer } }).catch(() => {});
     el.querySelector('form').remove();
     if (answer) bubble('user', esc(answer));
-    bubble('assistant', assistantHtml(answer ? '¡Gracias! Tu respuesta ayuda a tu Asistente Académico a acompañarte mejor.' : 'Sin problema. Sigamos con la clase.'));
+    bubble('assistant', assistantHtml({ text: answer ? '¡Gracias! Tu respuesta ayuda a tu Asistente Académico a acompañarte mejor.' : 'Sin problema. Sigamos con la clase.' }));
   };
   qs('form', el).addEventListener('submit', e => { e.preventDefault(); send(qs('textarea', el).value.trim() || null); });
   qs('[data-skip]', el).addEventListener('click', () => send(null));

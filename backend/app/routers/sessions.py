@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import random
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
@@ -17,9 +18,9 @@ from ..models import Chapter, ChatMessage, QuizAttempt, QuizItem, SessionSummary
 from ..services import quiz as quiz_service
 from ..services import summary as summary_service
 from ..services.attendance import live_metrics, overlap, union_ranges
-from ..services.chat import answer_question
+from ..services.chat import ChatError, answer_question
 from ..services.recompute import compute_course, recompute_course
-from ..services.text import parse_citations
+from ..services.text import fmt_ts, parse_citations
 from ..views import banner, compliance_json, iso
 
 router = APIRouter(tags=["sesiones"])
@@ -100,22 +101,34 @@ def video(session_id: int, db: Session = Depends(get_db)):
 
 
 class ChatIn(BaseModel):
-    message: str = Field(min_length=1, max_length=1000)
+    message: str = Field(default="", max_length=1000)
+    thread_id: int | None = None
+    action: Literal["hint", "explain", "answer", "close"] | None = None
 
 
 @router.post("/sessions/{session_id}/chat")
 def chat(session_id: int, body: ChatIn, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
     s = get_session_or_404(db, session_id)
-    res = answer_question(db, s, user.id, body.message.strip(), config.now())
-    return {"answer": res.answer, "citations": res.citations, "kind": res.kind, "route": res.route, "link": res.link}
+    message = body.message.strip()
+    if not message and body.thread_id is None:
+        raise HTTPException(400, "Escribe tu pregunta.")
+    try:
+        res = answer_question(db, s, user.id, message, config.now(), thread_id=body.thread_id, action=body.action)
+    except ChatError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return res.as_dict()
 
 
 @router.get("/sessions/{session_id}/chat")
 def chat_history(session_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)) -> list[dict]:
     rows = db.exec(select(ChatMessage).where(ChatMessage.session_id == session_id, ChatMessage.user_id == user.id)
                    .order_by(ChatMessage.at, ChatMessage.id)).all()
-    return [{"role": r.role, "text": r.text, "citations": parse_citations(r.text) if r.role == "assistant" else [],
-             **json.loads(r.meta_json or "{}")} for r in rows[-config.CHAT_HISTORY_TURNS * 4:]]
+    out = []
+    for r in rows[-config.CHAT_HISTORY_TURNS * 4:]:
+        cites = [{"sec": s, "label": fmt_ts(s)} for s in parse_citations(r.text)] if r.role == "assistant" else []
+        out.append({"role": r.role, "text": r.text, "thread_id": r.thread_id, "level": r.level, "citations": cites,
+                    **json.loads(r.meta_json or "{}")})
+    return out
 
 
 @router.get("/sessions/{session_id}/quiz")

@@ -17,6 +17,7 @@ from ..deps import get_course, get_session_or_404, require_tutor
 from ..models import (Alert, Chapter, ClassSession, MicroAnswer, Outbox, QuizItem, RiskSnapshot, User,
                       WithdrawalRequest)
 from ..services import quiz as quiz_service
+from ..services import tutor_chat
 from ..services.attendance import EN_VIVO, RECUPERADA
 from ..services.llm import LLMError
 from ..services.recompute import StudentStatus, compute_course, recompute_course
@@ -268,6 +269,12 @@ def _chapters_payload(db: Session, s: ClassSession) -> dict:
 @router.get("/sessions/{session_id}/chapters")
 def get_chapters(session_id: int, db: Session = Depends(get_db)) -> dict:
     return _chapters_payload(db, get_session_or_404(db, session_id))
+
+
+@router.get("/sessions/{session_id}/hard-topics")
+def get_hard_topics(session_id: int, db: Session = Depends(get_db)) -> dict:
+    get_session_or_404(db, session_id)
+    return {"topics": tutor_chat.hard_topics(db, session_id)}
 
 
 class ChapterPatch(BaseModel):

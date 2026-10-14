@@ -1,6 +1,6 @@
 // Seguimiento (tutor y roles afines): contadores, tabla de alumnos, cola de nivel 2 con registro de
 // contacto, detalle con línea de tiempo, indicadores semanales y validación de tramos clave.
-import { api, currentCourseId, esc, fmtDateTime, fmtTime, pct, qs, qsa, relativeDays, requireUser, toast } from './api.js';
+import { api, currentCourseId, esc, fmtDateTime, fmtTime, pct, plural, qs, qsa, relativeDays, requireUser, toast } from './api.js';
 
 requireUser({ staff: true });
 
@@ -272,13 +272,27 @@ function renderKeyEditor() {
         <label class="sol-switch"><input type="checkbox" data-logistics="${i}" ${c.logistics ? 'checked' : ''}><span></span> Logística</label>
       </span>
     </li>`).join('')}</ul>
-    <div class="sol-modal-actions"><button type="button" class="sol-btn" id="saveKeys"><i class="fa-solid fa-check"></i> Validar tramos clave</button></div>`;
+    <div class="sol-modal-actions"><button type="button" class="sol-btn" id="saveKeys"><i class="fa-solid fa-check"></i> Validar tramos clave</button></div>
+    <div id="hardTopics" class="sol-hard-topics"></div>`;
   renderKeySummary();
+}
+
+async function renderHardTopics(sessionId) {
+  const { topics } = await api(`/tutor/sessions/${sessionId}/hard-topics`).catch(() => ({ topics: [] }));
+  const box = qs('#hardTopics');
+  if (!box) return;
+  box.innerHTML = `<h3 class="sol-card-title"><i class="fa-solid fa-person-chalkboard"></i> Temas que más cuestan</h3>
+    ${topics.length ? `<p class="sol-note">Capítulos donde las consultas al tutor del chat llegaron a «paso guiado» o «explicación».</p>
+    <ul>${topics.slice(0, 5).map(t => `<li><span class="sol-chip sol-chip-proxima">${fmtTime(t.start)}</span>
+      <strong>${esc(t.title)}</strong>${t.is_key ? ' <i class="fa-solid fa-key sol-muted" title="Tramo clave"></i>' : ''}
+      <small class="sol-muted">${t.hard} de ${plural(t.threads, 'consulta', 'consultas')} necesitaron más ayuda · ${plural(t.students, 'alumno', 'alumnos')}</small></li>`).join('')}</ul>`
+    : '<p class="sol-note">Aún no hay consultas al tutor del chat sobre esta sesión.</p>'}`;
 }
 
 async function openKeys(sessionId) {
   currentKeys = await api(`/tutor/sessions/${sessionId}/chapters`);
   renderKeyEditor();
+  renderHardTopics(sessionId);
   qsa('#keySessions tr').forEach(tr => tr.classList.toggle('selected', Number(tr.dataset.session) === sessionId));
 }
 

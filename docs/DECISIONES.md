@@ -30,6 +30,26 @@ Referencia: [`SOLUCION_DMC_CURSOR.md`](SOLUCION_DMC_CURSOR.md) (v1) y [`SOLUCION
 - Editar una pregunta ya aprobada la mantiene aprobada y actualiza quién y cuándo la aprobó. No existe «aprobar todas».
 - En modo simulado, «Proponer preguntas» arma borradores con las viñetas de las diapositivas de cada tramo clave sin preguntas; «Sugerir alternativas» toma viñetas de otros capítulos y «Revisar redacción» aplica reglas fijas (alternativas repetidas, correcta mucho más larga, negaciones, palabras de la respuesta en el enunciado). Con Kimi, las tres usan `prompts/quiz_assist.md`.
 
+## Chat: ruteo sin LLM
+
+- `app/services/chat_router.py` clasifica cada mensaje con reglas de palabras (texto sin tildes, límites de palabra): **plataforma** (mi avance, plazos, quiz, asistencia, certificado), **logística** (horario, link de Zoom, fechas) o **contenido**. Solo el contenido pasa al tutor.
+- Plataforma responde con los datos reales del alumno calculados por el motor de asistencia (plazo de la sesión, % de tramos clave vistos, quiz, otras sesiones pendientes, asistencia efectiva contra el umbral del certificado) y enlaza a «Mi avance». Logística responde con el horario del curso y enlaza al detalle del curso. Ninguna de las dos llama al LLM.
+- El contador `questions_logistics` del diagnóstico suma logística y plataforma (las dos señalan dudas de organización, no de contenido).
+
+## Chat tutor
+
+- **Escalera de ayuda** guardada en `ChatThread`: 1 Ubicar (minuto y diapositiva), 2 Pista, 3 Paso guiado, 4 Explicación. Cada turno termina con una pregunta al alumno y cita al menos un minuto. Un intento fallido sube de nivel con `min(tope, 4, max(nivel + 1, intentos + 1))`; el botón «Ver explicación» aparece desde el nivel 3 o tras 2 intentos. Un intento correcto cierra el hilo y sugiere el siguiente tramo clave.
+- **Evidencia determinista** (sin LLM y sin embeddings): BM25 sobre segmentos de la transcripción y unidades del material (diapositivas). Raíces de 6 letras para palabras de 7 o más letras (5 si no), sin palabras interrogativas; variantes por prefijo solo si su IDF está a menos de 2.5 del término. La cobertura de la pregunta se pondera por IDF.
+- **Minuto citado:** ventanas de 20 s antes y 45 s después de cada candidato; puntaje = densidad BM25 × (0.5 + cobertura), ×1.5 si hay señal de definición («es un», «significa»…) y ×2 si repite la frase preguntada. Entre las ventanas con al menos el 75 % del mejor puntaje gana la más temprana (el docente suele definir antes de usar). Se prefiere el capítulo cercano a la diapositiva encontrada si su cobertura no es peor.
+- **Fuera de la clase:** si la cobertura de la pregunta en la ventana más las 4 mejores diapositivas no llega a 0.6, se responde la frase fija «Eso no se vio en esta clase…» sin abrir hilo ni llamar al LLM.
+- **Protección del quiz:** si la pregunta se parece (≥ 0.5, BM25 normalizado, con la transcripción como fondo) a una pregunta aprobada del quiz y el alumno aún no lo aprueba, el hilo queda topado en nivel 2. Además, si la respuesta contiene la alternativa correcta se reemplaza por una respuesta segura. Al aprobar el quiz el tope desaparece.
+- **Límites:** 90 palabras (se recorta conservando la pregunta final); historial de 6 turnos.
+- **Mock:** textos deterministas por nivel a partir de la evidencia (cita, viñetas de la diapositiva, frase de la transcripción). La evaluación simulada del intento compara términos del intento con la evidencia.
+- **Uso del LLM:** solo tutor, micro-preguntas y asistencia del quiz. `llm.track()` cuenta llamadas (también en mock) y `eval_chat.py` las imprime.
+- **Evaluación** (`scripts/eval_chat.py`, sesión 23, copia de la base): minuto a ±90 s **16/20**, primer turno con pregunta y ≤ 90 palabras **20/20**, quiz revelado **0/5**, fuera de la clase **5/5**. Las heurísticas se ajustaron mirando estas mismas 20 preguntas, así que 16/20 es optimista; hace falta un set nuevo de preguntas reales de alumnos para medirlo sin sesgo. El minuto esperado de «¿Qué es un RPA?» es 24:30, donde el docente lo define.
+- **Se eliminó** `services/processing.py` y sus prompts (capítulos, resumen, quiz, clasificación): todo eso ahora es determinista o lo escribe el docente.
+- **«Temas que más cuestan»** (`GET /api/tutor/sessions/{id}/hard-topics`): capítulos ordenados por hilos que llegaron a nivel 3 o 4. En la demo los hilos son **simulados**: el seed crea uno por cada pregunta de contenido de la cohorte (más 16 preguntas sobre la sesión real en la 23), con el capítulo según la evidencia y un nivel aleatorio con semilla fija.
+
 ## Reloj simulado
 
 `app/config.py` expone `now()` / `set_now()`. Si `SIM_NOW` está definido en `backend/.env`, esa fecha es la «hora actual» del sistema (plazos de 7 días, escalamiento a 48 h, demo del mes 3). Vacío = hora real del servidor. El endpoint `GET/POST /api/admin/clock` permite mover el reloj en caliente sin reiniciar. Los tests dejan `SIM_NOW` vacío y usan `set_now()` por caso.
@@ -54,8 +74,7 @@ Valor de demo: `2026-10-12T19:00:00` (sesión 24 recién dictada; plazos de las 
 - Modelos: `LLM_MODEL_CHAT` y `LLM_MODEL_FAST` = `kimi-k2.6` (verificar en la consola de Moonshot el nombre exacto habilitado para la cuenta).
 - `LLM_MOCK=1`, o una API key vacía / `...`, activa respuestas simuladas (sin costo). Pytest fuerza mock.
 - Prompts en español en `backend/app/prompts/`. Salida JSON validada con Pydantic y un reintento.
-- Chat: si el contexto supera el 70 % de `LLM_CONTEXT_TOKENS`, se reduce con BM25 (`rank-bm25`) a los fragmentos más relevantes. Si la pregunta no está en la clase, la respuesta fija es «Eso no se vio en esta clase…».
-- Criterio «16 de 20» del chat: `scripts/eval_chat.py`. Con mock da 19/20; con key real hay que volver a correrlo.
+- Chat (v2): el contexto del tutor son los 10 fragmentos y las 4 diapositivas más relevantes según BM25, no la transcripción completa (ver «Chat tutor»). Con key real hay que volver a correr `scripts/eval_chat.py`.
 
 ## Sesión de muestra y video
 
