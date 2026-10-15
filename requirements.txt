@@ -1,0 +1,25 @@
+# Dependencias del MVP (mismo contenido que backend/requirements.txt).
+# Instalar desde la carpeta backend:
+#   pip install -r requirements.txt
+# o desde la raíz del repo:
+#   pip install -r requirements.txt
+
+fastapi>=0.115
+uvicorn[standard]>=0.30
+sqlmodel>=0.0.22
+pydantic>=2.7
+pandas>=2.2
+numpy>=1.26
+webvtt-py>=0.5
+python-dateutil>=2.9
+rank-bm25>=0.2.2
+openai>=1.40
+python-dotenv>=1.0
+apscheduler>=3.10
+faker>=25.0
+python-pptx>=1.0
+pypdf>=4.0
+python-docx>=1.1
+psycopg[binary]>=3.1
+pytest>=8.0
+httpx>=0.27

@@ -1,0 +1,201 @@
+WEBVTT
+
+1
+00:00:15.000 --> 00:00:40.000
+Lincoln Villanueva: Buenas noches a todos, bienvenidos a la sesión de hoy de la especialización en n8n. Hoy vemos webhooks, el nodo HTTP Request, expresiones, Google Sheets y el nodo AI Agent.
+
+2
+00:02:30.000 --> 00:03:10.000
+Lincoln Villanueva: Repaso rápido: la sesión anterior vimos triggers programados con el nodo Schedule Trigger, que ejecuta un flujo cada cierto tiempo, por ejemplo todos los lunes a las 8 de la mañana.
+
+3
+00:05:10.000 --> 00:05:30.000
+Ana Torres: Profe, ¿el Schedule Trigger funciona si tengo la computadora apagada?
+
+4
+00:05:40.000 --> 00:06:20.000
+Lincoln Villanueva: Buena pregunta. Si usas n8n en tu computadora, no; necesitas n8n en la nube o en un servidor encendido para que el flujo se ejecute.
+
+5
+00:09:00.000 --> 00:09:40.000
+Lincoln Villanueva: Recuerden que el proyecto final se presenta en la sesión 24 y es una automatización completa con al menos un webhook y un nodo de IA.
+
+6
+00:12:20.000 --> 00:13:00.000
+Lincoln Villanueva: Empecemos con webhooks. Un webhook es una URL que n8n expone para recibir datos de otra aplicación en el momento en que ocurre un evento.
+
+7
+00:15:00.000 --> 00:15:50.000
+Lincoln Villanueva: El nodo Webhook tiene dos URLs: la URL de test, que solo funciona mientras haces clic en Listen for test event, y la URL de producción, que funciona cuando el flujo está activado.
+
+8
+00:18:30.000 --> 00:19:10.000
+Lincoln Villanueva: El método HTTP por defecto es GET, pero para recibir formularios casi siempre usaremos POST, porque los datos viajan en el cuerpo de la petición.
+
+9
+00:21:40.000 --> 00:22:00.000
+Carlos Ramírez: ¿Y si la otra aplicación necesita una respuesta inmediata?
+
+10
+00:22:10.000 --> 00:23:00.000
+Lincoln Villanueva: Para eso está la opción Respond: puedes responder de inmediato, o usar el nodo Respond to Webhook al final del flujo para devolver un resultado personalizado.
+
+11
+00:26:00.000 --> 00:26:50.000
+Lincoln Villanueva: Vamos a probarlo con un formulario de Tally: cada vez que alguien llena el formulario, Tally envía un POST a nuestro webhook con el nombre, el correo y el mensaje.
+
+12
+00:30:30.000 --> 00:31:10.000
+Lincoln Villanueva: Un consejo de seguridad: activen la autenticación del webhook con Header Auth para que solo quien conoce el token pueda enviar datos.
+
+13
+00:33:45.000 --> 00:34:30.000
+Lincoln Villanueva: El error más común es dejar la URL de test en la aplicación externa; cuando cierran el editor deja de funcionar. En producción siempre usen la URL de producción.
+
+14
+00:35:20.000 --> 00:36:00.000
+Lincoln Villanueva: Ahora el nodo HTTP Request, que sirve para que n8n llame a cualquier API, aunque no exista un nodo propio para esa aplicación.
+
+15
+00:38:00.000 --> 00:38:40.000
+Lincoln Villanueva: Configuramos el método, la URL y, si hace falta, los query parameters, los headers y el body en formato JSON.
+
+16
+00:41:30.000 --> 00:42:20.000
+Lincoln Villanueva: Para la autenticación lo recomendable es crear una credencial, por ejemplo Header Auth con la API key, en vez de escribir la llave directamente en el nodo.
+
+17
+00:45:00.000 --> 00:45:15.000
+María Quispe: Profe, me sale error 401.
+
+18
+00:45:20.000 --> 00:46:10.000
+Lincoln Villanueva: El 401 significa que la autenticación falló: revisa que la API key sea correcta y que el header tenga el nombre que pide la API, por ejemplo Authorization con la palabra Bearer.
+
+19
+00:49:00.000 --> 00:49:40.000
+Lincoln Villanueva: Si la API devuelve los resultados por páginas, activen la opción Pagination del nodo HTTP Request para traer todas las páginas automáticamente.
+
+20
+00:52:30.000 --> 00:53:10.000
+Lincoln Villanueva: Y si la API tiene límite de peticiones, usen la opción Batching para enviar las peticiones en lotes con una pausa entre ellos.
+
+21
+00:55:20.000 --> 00:56:10.000
+Lincoln Villanueva: Pasemos a las expresiones. Una expresión se escribe entre dobles llaves y permite usar datos de nodos anteriores, por ejemplo llaves llaves dólar json punto email.
+
+22
+00:58:40.000 --> 00:59:30.000
+Lincoln Villanueva: Dólar json se refiere al ítem actual que entra al nodo; si necesitan datos de otro nodo usen dólar, paréntesis, el nombre del nodo, punto item punto json.
+
+23
+01:02:00.000 --> 01:02:50.000
+Lincoln Villanueva: En n8n los datos viajan como una lista de ítems; cada ítem es un objeto JSON. Por eso un nodo se ejecuta una vez por cada ítem.
+
+24
+01:05:30.000 --> 01:06:10.000
+Lincoln Villanueva: Para transformar datos sin código, el nodo Edit Fields, antes llamado Set, permite crear o renombrar campos.
+
+25
+01:08:10.000 --> 01:08:40.000
+Lincoln Villanueva: Y si necesitan lógica más compleja, el nodo Code acepta JavaScript o Python.
+
+26
+01:10:30.000 --> 01:10:50.000
+Lincoln Villanueva: Hacemos una pausa de 10 minutos. Volvemos a las 8 y 50.
+
+27
+01:21:00.000 --> 01:21:50.000
+Lincoln Villanueva: Antes de seguir, temas de logística: las grabaciones se suben al aula virtual al día siguiente y la tarea de hoy se entrega hasta el domingo a las 11:59 de la noche.
+
+28
+01:24:30.000 --> 01:24:50.000
+Luis Fernández: ¿La asistencia cuenta si veo la grabación?
+
+29
+01:25:00.000 --> 01:25:50.000
+Lincoln Villanueva: Con el nuevo esquema, sí: si ves los tramos clave de la grabación y apruebas el quiz de la sesión dentro de 7 días, la sesión cuenta como cumplida.
+
+30
+01:29:00.000 --> 01:29:40.000
+Lincoln Villanueva: Michela López, la asistente académica, les puede ayudar con temas de pagos, certificados y justificaciones.
+
+31
+01:35:30.000 --> 01:36:10.000
+Lincoln Villanueva: Ahora conectamos con Google Sheets. Primero creamos la credencial de Google con OAuth2 desde la sección de credenciales.
+
+32
+01:40:00.000 --> 01:40:50.000
+Lincoln Villanueva: La operación Append Row agrega una fila nueva al final de la hoja; la operación Update Row modifica una fila existente usando una columna para hacer la coincidencia.
+
+33
+01:46:00.000 --> 01:46:50.000
+Lincoln Villanueva: Vamos a guardar cada respuesta del formulario de Tally en una hoja llamada Leads, con las columnas nombre, correo, mensaje y fecha.
+
+34
+01:52:30.000 --> 01:52:50.000
+Ana Torres: ¿Se puede leer una hoja y luego enviar correos?
+
+35
+01:53:00.000 --> 01:53:50.000
+Lincoln Villanueva: Sí, con la operación Get Rows leen la hoja y luego conectan el nodo Gmail; se enviará un correo por cada fila porque cada fila es un ítem.
+
+36
+01:58:00.000 --> 01:58:40.000
+Lincoln Villanueva: Ojo con los nombres de las columnas: deben coincidir exactamente con los encabezados de la hoja, incluyendo mayúsculas.
+
+37
+02:05:30.000 --> 02:06:20.000
+Lincoln Villanueva: Llegamos a la parte de IA. El nodo AI Agent combina un modelo de lenguaje con herramientas para que el agente decida qué acción tomar.
+
+38
+02:09:00.000 --> 02:10:00.000
+Lincoln Villanueva: Al AI Agent se le conectan tres cosas: el Chat Model, por ejemplo OpenAI o Gemini; la Memory, para recordar la conversación; y las Tools, como Google Sheets o HTTP Request.
+
+39
+02:14:00.000 --> 02:14:50.000
+Lincoln Villanueva: El system message define el rol del agente. Por ejemplo: eres un asistente que clasifica leads en caliente, tibio o frío según el mensaje.
+
+40
+02:18:30.000 --> 02:19:20.000
+Lincoln Villanueva: Para la memoria usaremos Window Buffer Memory, que guarda solo los últimos mensajes; con 5 mensajes es suficiente para este ejercicio.
+
+41
+02:22:00.000 --> 02:22:15.000
+Carlos Ramírez: ¿Cuánto cuesta usar el modelo?
+
+42
+02:22:30.000 --> 02:23:20.000
+Lincoln Villanueva: Depende del proveedor; se paga por tokens. Para las prácticas pueden usar modelos con capa gratuita como Gemini Flash o Groq.
+
+43
+02:26:00.000 --> 02:26:50.000
+Lincoln Villanueva: Si quieren que el agente devuelva datos estructurados, activen Require Specific Output Format y conecten un Structured Output Parser con el esquema JSON.
+
+44
+02:30:30.000 --> 02:31:20.000
+Lincoln Villanueva: Manejo de errores. Cada nodo tiene la opción Retry On Fail para reintentar automáticamente, por ejemplo 3 veces con 5 segundos de espera.
+
+45
+02:35:00.000 --> 02:35:50.000
+Lincoln Villanueva: También pueden configurar On Error en Continue para que el flujo siga aunque un nodo falle, y tratar el error después con un nodo IF.
+
+46
+02:40:00.000 --> 02:40:50.000
+Lincoln Villanueva: Lo más recomendable es crear un flujo aparte con el nodo Error Trigger, que se ejecuta cuando cualquier flujo falla, y enviar una alerta por Slack o correo.
+
+47
+02:45:30.000 --> 02:46:10.000
+Lincoln Villanueva: En la pestaña Executions pueden ver el historial de ejecuciones y abrir una ejecución fallida para ver en qué nodo se detuvo.
+
+48
+02:50:30.000 --> 02:51:20.000
+Lincoln Villanueva: La tarea: crear un flujo que reciba un formulario por webhook, clasifique el lead con el AI Agent y lo guarde en Google Sheets.
+
+49
+02:54:00.000 --> 02:54:40.000
+Lincoln Villanueva: La próxima sesión veremos cómo desplegar n8n en un servidor con Docker y cómo usar variables de entorno.
+
+50
+02:57:30.000 --> 02:58:00.000
+Lincoln Villanueva: Gracias por su participación, buenas noches a todos.

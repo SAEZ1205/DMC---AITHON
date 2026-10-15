@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+backend/.venv/
+
+# Configuración local (llaves)
+backend/.env
+
+# Datos: grabaciones, transcripciones, cohorte y base (Ley 29733). Solo se versiona la muestra.
+backend/data/*
+!backend/data/sample/
+backend/data/sample/**/*.mp4
+*.db
+*.db-wal
+*.db-shm
+
+# Vercel (proyecto enlazado y token OIDC local)
+.vercel
+.env*
+!.env.example
