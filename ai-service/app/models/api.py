@@ -45,6 +45,12 @@ class LLMHealth(BaseModel):
         default=None, description="Estado operativo del proveedor externo (ok | paused con el motivo preciso); sin credenciales")
     class_content_authorized: Optional[bool] = Field(
         default=None, description="NVIDIA: ¿está autorizado enviar contenido de la clase real? (NVIDIA_ALLOW_CLASS_CONTENT)")
+    streaming: Optional[Dict[str, Any]] = Field(
+        default=None, description="Streaming SSE del chat: {enabled, supported}. Solo para proveedores que lo implementan")
+    answer_cache: Optional[Dict[str, Any]] = Field(
+        default=None, description="Caché de respuestas verificadas (solo LIVE): activa, entradas y aciertos; nunca su contenido")
+    latency: Optional[Dict[str, Any]] = Field(
+        default=None, description="Latencia observada de las últimas preguntas (n, mediana, p90, máximo en ms) y estados; solo números")
     limits: Optional[Dict[str, Any]] = Field(
         default=None, description="NVIDIA: tiempos de espera (por llamada, total y guardián) y tope de tokens activos")
     egress_guard: Optional[Dict[str, Any]] = Field(

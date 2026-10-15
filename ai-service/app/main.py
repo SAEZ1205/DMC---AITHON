@@ -25,6 +25,7 @@ from app.knowledge.quiz_bank import QuizBank
 from app.knowledge.real_lesson import load_real_lesson, register_real_lesson, write_local_reports
 from app.knowledge.retriever import KnowledgeRetriever, retriever as default_retriever
 from app.llm import DemoProvider, KimiProvider, LLMProvider, NvidiaKimiProvider, ProviderSelection, select_provider
+from app.services.answer_cache import AnswerCache
 from app.services.guardian import HeuristicGuardian, LLMGuardian
 from app.services.lesson_service import LessonService
 from app.services.live_summary import LiveSummaryGenerator
@@ -91,7 +92,8 @@ def create_app(
         live_provider.attach_privacy(real.privacy)      # barrera final: re-enmascara y verifica nombres antes de cada envío
     guardian = LLMGuardian(live_provider, kb, heuristic) if live_provider else heuristic
     service = TutorService(kb, store, selection.provider, fallback_provider=fallback, telemetry=telemetry, guardian=guardian,
-                           privacy=real.privacy if real is not None else None)
+                           privacy=real.privacy if real is not None else None,
+                           answer_cache=AnswerCache(store, enabled=settings.ANSWER_CACHE_ENABLED))
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

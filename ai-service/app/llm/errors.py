@@ -67,6 +67,10 @@ class LLMContentNotAuthorized(LLMError):
     public_message = "El contenido de la clase no está autorizado para enviarse a este proveedor externo."
 
 
+class StreamCancelled(Exception):
+    """El cliente cerró la conexión (o canceló) durante un streaming: se corta la llamada al proveedor y no se guarda nada. No es un LLMError."""
+
+
 class LLMDeadlineExceeded(LLMTimeout):
     """Se agotó el tiempo TOTAL de la pregunta (no el de una llamada): no se inicia otra llamada al proveedor."""
     code = "llm_timeout"

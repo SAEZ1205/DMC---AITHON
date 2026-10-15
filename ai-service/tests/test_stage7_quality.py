@@ -193,8 +193,12 @@ def plan(service, message):
 
 def test_secondary_citations_need_substantial_evidence(tmp_path):
     service = make_service(tmp_path, [10.0, 8.6, 7.2, 5.0])
-    general = plan(service, "Explícame la automatización")                         # NVIDIA: 70 % del principal, hasta 3 segmentos
-    assert [m.segment.segment_id for m in general.evidence] == [0, 1, 2]
+    general = plan(service, "Explícame la automatización")                         # NVIDIA: 70 % del principal; lo normal es 1-2 segmentos
+    assert [m.segment.segment_id for m in general.evidence] == [0, 1]
+    compare = plan(service, "¿Qué diferencia hay entre automatización y procesos?")   # una comparación sí puede necesitar tres
+    assert [m.segment.segment_id for m in compare.evidence] == [0, 1, 2]
+    more = plan(service, "Dame otro ejemplo de automatización")                     # «otro ejemplo» tampoco se limita a 2
+    assert len(more.evidence) == 3
     definition = plan(service, "¿Qué es la automatización?")                      # definiciones: 85 %
     assert [m.segment.segment_id for m in definition.evidence] == [0, 1]
     weak = make_service(tmp_path, [10.0, 6.9, 5.0])
@@ -216,9 +220,9 @@ def test_terms_missing_from_the_evidence_are_reported(tmp_path):
 
 # ============================================================ prompt, glosario y contexto
 def test_the_system_prompt_encodes_the_stage7_rules():
-    assert PROMPT_VERSION == "rescuepath-socratic-tutor/1.1.0" and PROMPT_VERSION in SYSTEM_PROMPT
+    assert PROMPT_VERSION == "rescuepath-socratic-tutor/1.2.0" and PROMPT_VERSION in SYSTEM_PROMPT
     for rule in ("NHN", "No copies párrafos", "Complemento (no es de la clase)", "answerable", "no atribuyas al docente", "UN segmento",
-                 "Responde DIRECTAMENTE", "110 palabras", "no corrijas", "En esta clase no se explica"):
+                 "Responde DIRECTAMENTE", "60 a 100 palabras", "no corrijas", "En esta clase no se explica"):
         assert rule.lower() in SYSTEM_PROMPT.lower(), rule
 
 

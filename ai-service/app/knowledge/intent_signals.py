@@ -68,6 +68,14 @@ def _remove(rx: "re.Pattern[str]", text: str) -> str:
     return " ".join("".join(out).split())
 
 
+_COMPARISON_RE = re.compile(r"\bdiferenc\w*\b|\bdifier\w*\b|\bcompar\w*\b|\bversus\b|\bvs\b|\bmejor que\b|\bo bien\b")
+
+
+def is_comparison_question(message: str) -> bool:
+    """«¿Qué diferencia hay entre X y Y?»: compara dos temas y por eso puede necesitar evidencia de ambos."""
+    return bool(_COMPARISON_RE.search(normalize_text(message)))
+
+
 def is_definition_question(message: str) -> bool:
     return bool(_DEFINITION_RE.search(normalize_text(message)))
 

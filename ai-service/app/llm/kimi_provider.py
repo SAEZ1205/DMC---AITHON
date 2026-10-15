@@ -28,6 +28,7 @@ from app.llm.errors import (
     LLMAuthError, LLMBudgetExceeded, LLMError, LLMMalformedResponse, LLMRateLimited,
     LLMRequestRejected, LLMTimeout, LLMUnavailable,
 )
+from app.services import latency
 from app.llm.prompts import build_guardian_messages, build_messages, build_summary_messages
 from app.llm.verification import parse_model_json, verify_and_render
 from app.models.transcript import SegmentMatch
@@ -84,7 +85,9 @@ class KimiProvider(LLMProvider):
         if context.kind is not ResponseKind.GROUNDED:
             return self._local.generate(context)
 
-        bundle = build_messages(context, self.config.max_history_messages)
+        with latency.stage("prompt_ms"):
+            bundle = build_messages(context, self.config.max_history_messages)
+        latency.set_count("prompt_chars", sum(len(m["content"]) for m in bundle.messages))
         if not bundle.label_to_index:
             # Todos los segmentos fueron retenidos por parecer instrucciones: no hay evidencia utilizable.
             logger.warning("Segmentos retenidos por posible inyección de instrucciones: %d", bundle.skipped_segments)
@@ -98,9 +101,13 @@ class KimiProvider(LLMProvider):
         self._budget.acquire()
         body = self._post(self._payload(bundle.messages))
         content, usage = self._extract_content(body)
+        for key in ("prompt_tokens", "completion_tokens", "reasoning_tokens"):
+            if isinstance((usage or {}).get(key), int):
+                latency.set_count(key, usage[key])
 
-        data = parse_model_json(content)
-        verified = verify_and_render(data, bundle.label_to_index, context.evidence, context.student_message)
+        with latency.stage("verify_ms"):
+            data = parse_model_json(content)
+            verified = verify_and_render(data, bundle.label_to_index, context.evidence, context.student_message)
         logger.info("kimi ok model=%s tokens=%s", body.get("model", self.config.model), usage)
         return TutorReply(
             text=verified.text,

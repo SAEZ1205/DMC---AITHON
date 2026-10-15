@@ -10,6 +10,7 @@ Principios
     se rechaza antes de leer mensajes.
 """
 import contextlib
+import contextvars
 import logging
 import re
 from dataclasses import dataclass, field, replace
@@ -30,16 +31,23 @@ from app.services.errors import (
 )
 from app.privacy import mask_pii
 from app.services.guardian import Guardian, GuardianVerdict, Relevance
+from app.llm.prompts import PROMPT_VERSION
+from app.services import answer_cache, latency
+from app.services.summary_service import transcript_fingerprint
 from app.services.intents import MessageAnalysis, analyze_message
 from app.services.telemetry_service import TelemetryService
 from app.storage.conversation_store import ConversationStore, SessionRecord
 
 logger = logging.getLogger(__name__)
+_STREAM_HOOKS = contextvars.ContextVar("tutor_stream_hooks", default=None)     # (on_delta, should_cancel) de la solicitud en curso
 
 # En preguntas de definición lo habitual es UNA explicación: otro segmento solo acompaña si es casi igual de fuerte.
 DEFINITION_SECONDARY_RATIO = 0.85
-HISTORY_WINDOW_MESSAGES = 6      # mensajes previos entregados como contexto (3 turnos)
-HISTORY_MESSAGE_MAX_CHARS = 500  # tope por mensaje en el contexto
+HISTORY_WINDOW_MESSAGES = 6      # mensajes previos que se leen de la base
+HISTORY_SENT_MESSAGES = 2        # de ellos, solo el último turno (pregunta y respuesta) viaja al modelo, y solo en seguimientos
+HISTORY_MESSAGE_MAX_CHARS = 300  # tope por mensaje en el contexto
+# Evidencia: lo normal es 1-2 segmentos; solo las comparaciones y los "otro ejemplo" admiten el máximo del proveedor (3).
+DEFAULT_EVIDENCE_CAP = 2
 MAX_CANDIDATES = 10              # segmentos pedidos al recuperador
 # Evidencia por respuesta: la define cada proveedor (`max_evidence`, `secondary_score_ratio`).
 # DEMO: 2 y 0.85 (un segundo segmento solo si casi empata; el resto queda para "otro ejemplo").
@@ -77,6 +85,7 @@ class TutorService:
         telemetry: Optional[TelemetryService] = None,
         guardian: Optional[Guardian] = None,
         privacy=None,
+        answer_cache=None,
     ):
         self.retriever = retriever
         self.store = store
@@ -86,6 +95,9 @@ class TutorService:
         self.telemetry = telemetry
         self.guardian = guardian
         self.privacy = privacy   # PrivacyFilter con los nombres aprendidos de la clase (o None)
+        self.cache = answer_cache      # AnswerCache o None: respuestas verificadas de Kimi para preguntas repetidas
+        self._fingerprints = {}
+        self.latency = latency.LatencyStats()    # últimas mediciones por etapa (solo números); las expone /health
 
     # ------------------------------------------------------------ catálogo
     def list_courses(self):
@@ -109,11 +121,15 @@ class TutorService:
         ]
 
     # ---------------------------------------------------------------- chat
-    def chat(self, req: ChatRequest, idem_scope: Optional[str] = None) -> ChatResponse:
+    def chat(self, req: ChatRequest, idem_scope: Optional[str] = None, on_delta=None, should_cancel=None) -> ChatResponse:
         # Un solo reloj para toda la pregunta (guardián + tutor): el proveedor externo no puede hacer esperar más del tope total.
         scope = getattr(self.provider, "request_scope", None)
-        with (scope() if scope else contextlib.nullcontext()):
-            return self._chat(req, idem_scope)
+        hooks = _STREAM_HOOKS.set((on_delta, should_cancel) if on_delta is not None else None)   # solo para esta solicitud (ContextVar)
+        try:
+            with latency.trace_scope(), (scope() if scope else contextlib.nullcontext()):
+                return self._chat(req, idem_scope)
+        finally:
+            _STREAM_HOOKS.reset(hooks)
 
     def _chat(self, req: ChatRequest, idem_scope: Optional[str] = None) -> ChatResponse:
         course_name = self._require_course(req.course_id)
@@ -130,16 +146,21 @@ class TutorService:
         analysis = analyze_message(message)
         cited = set() if is_new else self.store.get_cited_segments(session_id)
 
-        verdict = self.guardian.assess(message, req.course_id, lesson_id) if (self.guardian and analysis.user_intent == "question") else None
+        with latency.stage("guardian_ms"):
+            verdict = self.guardian.assess(message, req.course_id, lesson_id) if (self.guardian and analysis.user_intent == "question") else None
         if verdict is not None and verdict.label is Relevance.NOT_RELEVANT:
             plan = _Plan(ResponseKind.OUT_OF_SCOPE)          # no se recupera ni se llama a ningún modelo
         else:
-            plan = self._plan(req.course_id, lesson_id, analysis, session, cited, message)
+            with latency.stage("retrieval_ms"):
+                plan = self._plan(req.course_id, lesson_id, analysis, session, cited, message)
             if verdict is not None and verdict.label is Relevance.UNCERTAIN and plan.kind is ResponseKind.GROUNDED:
                 verdict = GuardianVerdict(Relevance.RELEVANT, "evidence", ("Se encontró evidencia en la transcripción de la clase.",),
                                           verdict.matched_terms)
 
-        history_records = [] if is_new else self.store.get_recent_messages(session_id, HISTORY_WINDOW_MESSAGES)
+        # El historial solo importa si el mensaje depende de lo anterior ("otro ejemplo", "no entendí", "¿y eso?"): una pregunta nueva
+        # y autosuficiente no lo necesita, y enviarlo solo añade tokens, latencia y exposición de datos.
+        needs_history = analysis.user_intent == "follow_up" or analysis.refers_to_previous or analysis.follow_up_mode is not FollowUpMode.NONE
+        history_records = [] if (is_new or not needs_history) else self.store.get_recent_messages(session_id, HISTORY_SENT_MESSAGES)
         turn_number = 1 if is_new else self.store.count_turns(session_id) + 1
         lesson = self.retriever.get_lesson(req.course_id, lesson_id) if lesson_id else None
 
@@ -157,7 +178,13 @@ class TutorService:
             direct_evidence=plan.direct_evidence,
             missing_terms=plan.missing_terms,
         )
-        reply = self._generate(context)
+        latency.set_count("evidence_segments", len(plan.evidence))
+        latency.set_count("history_messages", len(context.history))
+        cache_key = self._cache_key(plan, analysis, context, message, lesson)
+        reply = self._cached_reply(cache_key, plan) if cache_key else None
+        if reply is None:
+            reply = self._generate(context)
+            self._store_in_cache(cache_key, plan, reply)
 
         # Las citas salen SOLO de los segmentos recuperados que la respuesta usa realmente, y las construye
         # el backend: ningún proveedor puede crear referencias propias.
@@ -167,27 +194,35 @@ class TutorService:
             plan.kind, plan.update_focus = ResponseKind.NO_EVIDENCE, False
         citations = self.retriever.build_segment_citations(used) if plan.kind is ResponseKind.GROUNDED else []
 
-        self.store.record_turn(
-            session_id=session_id,
-            student_message=message,
-            student_intent=analysis.user_intent,
-            tutor_message=reply.text,
-            tutor_intent=plan.kind.value,
-            topic=plan.topic_id,
-            citations=[c.model_dump() for c in citations],
-            update_focus=plan.update_focus,
-            focus_topic=plan.topic_id,
-            focus_query=plan.focus_query,
-            new_session=(req.student_id, req.course_id, lesson_id) if is_new else None,
-            provider=f"{reply.provider}:{reply.model}" if reply.model else reply.provider,
-            fallback_reason=reply.fallback_reason,
-        )
-        logger.info(
-            "chat session=%s turn=%d user_intent=%s response=%s cited=%d provider=%s fallback=%s",
-            session_id, turn_number, analysis.user_intent, plan.kind.value, len(citations),
-            reply.provider, bool(reply.fallback_reason),
-        )
-        self._record_telemetry(req, message, session_id, lesson_id, analysis, plan, reply, used, idem_scope, verdict)
+        with latency.stage("persist_ms"):
+            self.store.record_turn(
+                session_id=session_id,
+                student_message=message,
+                student_intent=analysis.user_intent,
+                tutor_message=reply.text,
+                tutor_intent=plan.kind.value,
+                topic=plan.topic_id,
+                citations=[c.model_dump() for c in citations],
+                update_focus=plan.update_focus,
+                focus_topic=plan.topic_id,
+                focus_query=plan.focus_query,
+                new_session=(req.student_id, req.course_id, lesson_id) if is_new else None,
+                provider=f"{reply.provider}:{reply.model}" if reply.model else reply.provider,
+                fallback_reason=reply.fallback_reason,
+            )
+            logger.info(
+                "chat session=%s turn=%d user_intent=%s response=%s cited=%d provider=%s fallback=%s",
+                session_id, turn_number, analysis.user_intent, plan.kind.value, len(citations),
+                reply.provider, bool(reply.fallback_reason),
+            )
+            self._record_telemetry(req, message, session_id, lesson_id, analysis, plan, reply, used, idem_scope, verdict)
+
+        trace = latency.current()
+        timing = trace.public(self._timing_status(plan, reply)) if trace is not None else None
+        if timing is not None:
+            self.latency.add(timing)
+            logger.info("chat_timing status=%s total_ms=%s provider_ms=%s prompt_chars=%s evidence=%s", timing["status"], timing["total_ms"],
+                        timing.get("provider_ms"), timing["counts"].get("prompt_chars"), timing["counts"].get("evidence_segments"))
 
         return ChatResponse(
             response=reply.text,
@@ -209,7 +244,72 @@ class TutorService:
             telemetry_notice=TELEMETRY_NOTICE,
             guardian=None if verdict is None else GuardianInfo(
                 label=verdict.label.value, method=verdict.method, is_llm=verdict.is_llm, reasons=list(verdict.reasons)),
+            answer_origin=self._origin(reply),
+            cached_at=reply.cached_at,
+            timing=timing,
         )
+
+    @staticmethod
+    def _timing_status(plan: "_Plan", reply: TutorReply) -> str:
+        """Estado seguro del resultado para las métricas: no revela contenido."""
+        if plan.kind is not ResponseKind.GROUNDED and plan.kind is not ResponseKind.NO_EVIDENCE:
+            return plan.kind.value
+        if reply.mode == "CACHED":
+            return "cached"
+        if reply.fallback_reason:
+            return "demo_fallback"
+        return "live" if reply.mode == "LIVE" else "demo"
+
+    @staticmethod
+    def _origin(reply: TutorReply) -> str:
+        """Qué hay detrás del texto: una generación nueva, una respuesta guardada, un fallback DEMO o el DEMO normal."""
+        if reply.mode == "CACHED":
+            return "cached"
+        if reply.fallback_reason:
+            return "demo_fallback"
+        return "live" if reply.mode == "LIVE" else "demo"
+
+    # ------------------------------------------------------------------ caché de respuestas verificadas
+    def _cache_key(self, plan: "_Plan", analysis, context: TutorContext, message: str, lesson) -> Optional[str]:
+        """Clave solo para lo seguro de reutilizar: primera pregunta de la conversación, autosuficiente, sin datos personales, con LIVE."""
+        cache = self.cache
+        cfg = getattr(self.provider, "config", None)
+        if (cache is None or not cache.enabled or cfg is None or self.provider.mode != "LIVE" or lesson is None
+                or plan.kind is not ResponseKind.GROUNDED or not plan.evidence or context.history or plan.mode is not FollowUpMode.NONE
+                or analysis.user_intent != "question" or answer_cache.has_personal_data(message)):
+            return None
+        memo = (lesson.course_id, lesson.lesson_id, len(lesson.segments), lesson.content_hash)
+        if memo not in self._fingerprints:
+            self._fingerprints[memo] = transcript_fingerprint(lesson)
+        return answer_cache.make_key(
+            question=message, course_id=lesson.course_id, lesson_id=lesson.lesson_id, fingerprint=self._fingerprints[memo],
+            evidence_starts=[m.segment.start_seconds for m in plan.evidence], prompt_version=PROMPT_VERSION, provider=self.provider.name,
+            model=cfg.model, effort=cfg.reasoning_effort, max_tokens=cfg.max_output_tokens, direct_evidence=plan.direct_evidence,
+            missing_terms=plan.missing_terms)
+
+    def _cached_reply(self, key: str, plan: "_Plan") -> Optional[TutorReply]:
+        with latency.stage("cache_ms"):
+            hit = self.cache.get(key)
+        if hit is None:
+            return None
+        starts = [m.segment.start_seconds for m in plan.evidence]
+        if not all(s in starts for s in hit.cited_starts):          # defensa: la evidencia actual debe contener lo que la respuesta cita
+            return None
+        latency.set_count("cache_hit", 1)
+        return TutorReply(text=hit.text, follow_up_question=hit.follow_up_question,
+                          cited_indices=tuple(starts.index(s) for s in hit.cited_starts), provider=hit.provider, mode="CACHED",
+                          model=hit.model, usage=None, fallback_reason=None, cached_at=hit.created_at)
+
+    def _store_in_cache(self, key: Optional[str], plan: "_Plan", reply: TutorReply) -> None:
+        """Solo una generación LIVE NUEVA y verificada (no un fallback, no otra caché) con citas reales."""
+        if not key or reply.mode != "LIVE" or reply.fallback_reason or not reply.cited_indices:
+            return
+        try:
+            self.cache.put(key, text=reply.text, follow_up_question=reply.follow_up_question,
+                           cited_starts=[plan.evidence[i].segment.start_seconds for i in reply.cited_indices if 0 <= i < len(plan.evidence)],
+                           provider=reply.provider, model=reply.model)
+        except Exception:                                           # la caché nunca debe romper una respuesta ya generada
+            logger.warning("No se pudo guardar la respuesta en la caché", exc_info=True)
 
     def _mask(self, text: str) -> str:
         """Patrones (correo, teléfono...) + los nombres que la clase real enseñó al filtro. Idempotente: es seguro repetirlo."""
@@ -241,6 +341,9 @@ class TutorService:
     def _generate(self, context: TutorContext) -> TutorReply:
         """Llama al proveedor; si LIVE falla de forma temporal degrada a DEMO SIN ocultarlo."""
         try:
+            stream = _STREAM_HOOKS.get()
+            if stream is not None and getattr(self.provider, "supports_streaming", False) and context.kind is ResponseKind.GROUNDED:
+                return self.provider.generate_stream(context, stream[0], stream[1])
             return self.provider.generate(context)
         except LLMError as exc:
             logger.warning(
@@ -276,6 +379,9 @@ class TutorService:
         return [plan.evidence[i] for i in picked]
 
     def _provider_notice(self, reply: TutorReply) -> Optional[str]:
+        if reply.mode == "CACHED":
+            return ("Respuesta guardada: la generó Kimi antes (" + (reply.cached_at or "fecha desconocida")[:10] + ") y pasó la verificación de citas; "
+                    "no es una generación nueva.")
         if reply.fallback_reason:
             return (
                 f"Esta respuesta la generó el modo DEMO porque el proveedor LIVE ({self.provider.name}) "
@@ -344,7 +450,7 @@ class TutorService:
         if analysis.user_intent == "closing":
             return _Plan(ResponseKind.CLOSING)
 
-        previous_query = session.current_query if session else None
+        previous_query = self._mask(session.current_query) if (session and session.current_query) else None   # puede venir de antes de conocer un nombre
         query = analysis.query
         reuse_previous = False
 
@@ -376,9 +482,12 @@ class TutorService:
         ratio = self.provider.secondary_score_ratio
         if intent == "definition":
             ratio = max(ratio, DEFINITION_SECONDARY_RATIO)
+        cap = self.provider.max_evidence
+        if analysis.kind != "comparison" and mode is FollowUpMode.NONE:
+            cap = min(cap, DEFAULT_EVIDENCE_CAP)            # menos fragmentos = menos tokens; una comparación sí puede necesitar tres
         evidence = [candidates[0]] + [
             m for m in candidates[1:] if m.score >= candidates[0].score * ratio
-        ][: self.provider.max_evidence - 1]
+        ][: cap - 1]
         return _Plan(
             ResponseKind.GROUNDED,
             evidence=evidence,

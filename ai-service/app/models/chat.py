@@ -1,4 +1,4 @@
-﻿from typing import List, Optional
+﻿from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, field_validator
 
 # Identificadores: solo caracteres seguros y longitud acotada.
@@ -79,6 +79,10 @@ class ChatResponse(BaseModel):
     )
     telemetry_notice: str = Field(default="", description="Aviso al estudiante de que su actividad genera métricas")
     guardian: Optional[GuardianInfo] = Field(default=None, description="Veredicto de pertinencia de la pregunta")
+    answer_origin: str = Field(default="demo", description="live (generación nueva) | cached (guardada y verificada antes) | demo | demo_fallback")
+    cached_at: Optional[str] = Field(default=None, description="Si la respuesta salió de la caché: cuándo se generó originalmente")
+    timing: Optional[Dict[str, Any]] = Field(
+        default=None, description="Latencia por etapa en ms y contadores (solo números y un estado; nunca texto de la pregunta ni de la clase)")
 
 class CourseTopicInfo(BaseModel):
     id: str

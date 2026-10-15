@@ -67,6 +67,7 @@ class TutorReply:
     model: Optional[str] = None
     usage: Optional[Dict[str, Any]] = None       # solo contadores de tokens
     fallback_reason: Optional[str] = None        # se rellena si LIVE falló y se degradó a DEMO
+    cached_at: Optional[str] = None              # solo en respuestas de caché: cuándo se generó originalmente
 
 
 class LLMProvider(ABC):

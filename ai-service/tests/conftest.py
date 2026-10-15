@@ -25,7 +25,8 @@ def hermetic_environment(monkeypatch):
     from app.config import settings
 
     for name, value in (("LLM_PROVIDER", "demo"), ("LLM_API_KEY", ""), ("LLM_LIVE_AUTHORIZED", False),
-                        ("NVIDIA_API_KEY", ""), ("NVIDIA_ALLOW_CLASS_CONTENT", False)):
+                        ("NVIDIA_API_KEY", ""), ("NVIDIA_ALLOW_CLASS_CONTENT", False), ("ANSWER_CACHE_ENABLED", False),
+                        ("CHAT_STREAMING_ENABLED", False)):
         monkeypatch.setattr(settings, name, value)
 
     real_connect, real_getaddrinfo = socket.socket.connect, socket.getaddrinfo

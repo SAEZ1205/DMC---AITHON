@@ -131,6 +131,10 @@ class Settings:
     NVIDIA_MAX_TOKENS_PARAM: str = os.getenv("NVIDIA_MAX_TOKENS_PARAM", "max_completion_tokens").strip()
     NVIDIA_JSON_MODE: bool = _env_bool("NVIDIA_JSON_MODE", False)
     NVIDIA_ALLOW_CLASS_CONTENT: bool = _env_bool("NVIDIA_ALLOW_CLASS_CONTENT", False)
+    # Caché de respuestas verificadas (solo aplica al proveedor LIVE): una pregunta repetida no vuelve a esperar a Kimi. Ver services/answer_cache.py.
+    ANSWER_CACHE_ENABLED: bool = _env_bool("ANSWER_CACHE_ENABLED", True)
+    # Chat con streaming SSE (POST /api/chat/stream): OPCIONAL y apagado. No se ha probado contra el endpoint real de NVIDIA (ver README, Etapa 9).
+    CHAT_STREAMING_ENABLED: bool = _env_bool("CHAT_STREAMING_ENABLED", False)
 
     # Quizzes, micro-pregunta y telemetría (Etapa 4)
     QUIZ_PASS_THRESHOLD_PERCENT: float = float(os.getenv("QUIZ_PASS_THRESHOLD_PERCENT", "60"))

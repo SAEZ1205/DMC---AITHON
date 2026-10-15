@@ -48,7 +48,7 @@ def test_health_reports_live_without_leaking_the_key(db_path, retriever):
     assert body["llm"] == {
         "active_provider": "kimi", "configured_provider": "kimi", "mode": "LIVE", "selection_reason": "LIVE autorizado",
         "model": "kimi-k2.6", "live_authorized": True, "api_key_configured": True, "fallback_to_demo": True,
-        "live_calls_used": 0, "live_calls_limit": 100, "provider_status": None, "class_content_authorized": None, "limits": None, "egress_guard": None,
+        "live_calls_used": 0, "live_calls_limit": 100, "provider_status": None, "class_content_authorized": None, "streaming": None, "answer_cache": None, "latency": None, "limits": None, "egress_guard": None,
     }
     assert FAKE_KEY not in resp.text
 
@@ -112,7 +112,7 @@ def test_conversational_continuity_history_and_new_evidence(db_path, retriever):
     assert first["response"][:40] in p2["messages"][2]["content"]
     final = p2["messages"][-1]["content"]
     assert "Tipo de interacción: explicacion_adicional" in final and "Tema activo: ORDER BY" in final
-    assert "Turno de la sesión: 2" in final
+    assert "Turno de la sesión" not in final                                          # línea sin utilidad para el modelo: ya no se envía
     assert "06:22–07:20" not in final                      # el segmento ya citado no se reenvía como "otro ejemplo"
     assert second["session_id"] == first["session_id"] and refs(second) == ["07:20–08:05"]
 
@@ -208,7 +208,6 @@ def test_students_are_isolated_with_a_live_provider(db_path, retriever):
     assert b["session_id"] != a["session_id"]
     sent_for_b = "".join(m["content"] for m in fake.payloads[-1]["messages"])
     assert "ALUMNO-A" not in sent_for_b and "Mi nota secreta" not in sent_for_b   # nada de A llega al contexto de B
-    assert "Turno de la sesión: 1" in fake.last_user_message()
     assert len(fake.payloads[-1]["messages"]) == 2                          # sin historial heredado
 
 

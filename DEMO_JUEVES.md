@@ -119,6 +119,13 @@ administrativa explícita. Los títulos son **etiquetas temáticas** asignadas p
 de procesos" a "Cierre y próximos pasos"); la frase de cada tema es una cita textual con los errores del reconocimiento automático. **No es un resumen redactado por IA**: no digas que lo es.
 El resumen con Kimi existe como acción administrativa separada (§10) y, si se generara, se mostraría con otra etiqueta ("Resumen generado con Kimi").
 
+## 8b. Latencia (Etapa 9): qué cambió y qué NO está medido
+- Cada respuesta muestra una píldora **⏱** (servidor, Kimi y espera total). `/health` → `llm.latency` resume las últimas preguntas. El backend propio tarda ~25 ms; **la espera real es NVIDIA y no se ha medido con el prompt nuevo**.
+- **Caché de respuestas verificadas** (`ANSWER_CACHE_ENABLED=true` por defecto, solo con Kimi): si en el ensayo hiciste una pregunta, repetirla (primera pregunta de una conversación nueva, misma clase, mismo prompt y modelo) responde al instante con la etiqueta
+  **"Respuesta guardada · generada antes por Kimi (fecha)"**. Díselo a la audiencia: no es una generación nueva. Para precalentarla, haz en el ensayo las 3 preguntas recomendadas con Kimi y **no cambies código, prompt ni
+  `mask-names.txt` después** (invalidan las entradas). Verifica en `/health` → `llm.answer_cache` (`entries`, `hits`).
+- **Streaming:** existe pero está **apagado** y sin probar contra NVIDIA real. No lo actives el jueves sin un ensayo (ver el informe de la Etapa 9).
+
 ## 9. Si NVIDIA tarda, falla o llega al límite gratuito
 - **Tarda:** Kimi razona antes de responder; el chat muestra "Kimi está preparando tu respuesta…" con un contador y, a los 15 s, un aviso. Espera hasta ~2,5 min como máximo. **No hay mediciones de la
   velocidad real de Kimi con este prompt**: no prometas un tiempo. Una prueba anterior con texto ficticio tardó 42 s.

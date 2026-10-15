@@ -213,7 +213,7 @@ def test_a_name_stored_unmasked_in_the_history_is_masked_before_leaving(db_path,
 
     second = FakeKimi(OK)
     with TestClient(app_for(db_path, assets, second)) as c:
-        body = chat_n8n(c, "¿Y qué hace el nodo webhook?", session_id=session).json()
+        body = chat_n8n(c, "No entendí, ¿puedes explicarlo otra vez?", session_id=session).json()      # seguimiento: SÍ viaja el último turno
     assert body["session_id"] == session and body["provider"] == "nvidia-kimi"
     history = tutor_payload(second)["messages"][1:-1]
     assert history and any("[nombre]" in m["content"] for m in history)                     # el turno viejo viaja, pero enmascarado
@@ -223,12 +223,13 @@ def test_a_name_stored_unmasked_in_the_history_is_masked_before_leaving(db_path,
 def test_a_name_cut_in_half_by_the_history_truncation_does_not_leave_a_fragment(db_path, tmp_path, assets):
     """El historial se trunca a 500 caracteres: se enmascara ANTES de truncar, o quedaría un trozo de nombre irreconocible."""
     stale_assets = make_assets(tmp_path, "sin-nombres", with_names=False)
-    long_message = ("x" * 490) + f" {LISTED_B} fin"                                          # el corte en 500 deja 9 de sus 10 letras
+    long_message = f"¿Qué hace el nodo webhook? {'x' * 263} {LISTED_B} fin"                    # el nombre empieza en el carácter 291: el corte en 300 deja 9 de sus 10 letras
     with TestClient(app_for(db_path, stale_assets, FakeKimi(OK))) as c:
         session = chat_n8n(c, long_message).json()["session_id"]
     second = FakeKimi(OK)
     with TestClient(app_for(db_path, assets, second)) as c:
-        chat_n8n(c, "¿Qué es el nodo webhook?", session_id=session)
+        chat_n8n(c, "No entendí, ¿puedes explicarlo otra vez?", session_id=session)
+    assert tutor_payload(second)["messages"][1:-1]                                           # el historial SÍ viajó (si no, la prueba sería vacía)
     assert LISTED_B[:6] not in sent_text(second) and "tolome" not in sent_text(second)         # ni el nombre ni un trozo reconocible
 
 

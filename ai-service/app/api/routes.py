@@ -2,10 +2,13 @@ from datetime import datetime, timezone
 from typing import List
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from app import __version__
 from app.api.idempotency import IdempotencyKey, run_idempotent
+from app.api.streaming import sse_events
+from app.config import settings
+from app.services.errors import AppError
 from app.models.api import (
     ErrorResponse, HealthResponse, KnowledgeHealth, LessonInfo, LLMHealth, StorageHealth,
 )
@@ -68,6 +71,10 @@ def health(request: Request):
         class_content_authorized=config.allow_class_content if getattr(service.provider, "name", "") == "nvidia-kimi" else None,
         egress_guard=getattr(service.provider, "egress_guard_status", lambda: None)(),
         limits=getattr(service.provider, "limits", lambda: None)(),
+        latency=service.latency.summary(),
+        streaming=({"enabled": settings.CHAT_STREAMING_ENABLED, "supported": True}
+                   if getattr(service.provider, "supports_streaming", False) else None),
+        answer_cache=service.cache.summary() if (service.cache is not None and service.cache.enabled and service.provider.mode == "LIVE") else None,
     )
     ok = storage.status == "ok"
     body = HealthResponse(
@@ -122,3 +129,20 @@ def list_lessons(course_id: str, request: Request):
 def chat(payload: ChatRequest, request: Request, idempotency_key: IdempotencyKey = None):
     return run_idempotent(request, "chat", payload.student_id, idempotency_key, payload.model_dump(),
                           lambda scope: _service(request).chat(payload, idem_scope=scope))
+
+
+@router.post(
+    "/api/chat/stream",
+    tags=["Asistente"],
+    summary="Chat con streaming SSE (opcional, apagado por defecto)",
+    description=(
+        "Igual que `/api/chat`, pero entrega texto PROVISIONAL (`delta`) mientras el modelo responde y termina con un evento `final` que contiene la respuesta "
+        "oficial con citas verificadas. Requiere `CHAT_STREAMING_ENABLED=true`; si está apagado responde 403 y el cliente debe usar `/api/chat`."
+    ),
+    responses={403: _ERRORS[403]},
+)
+def chat_stream(payload: ChatRequest, request: Request):
+    if not settings.CHAT_STREAMING_ENABLED:
+        raise AppError(403, "streaming_disabled", "El chat con streaming está apagado (CHAT_STREAMING_ENABLED=false). Usa /api/chat.")
+    return StreamingResponse(sse_events(_service(request), payload), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

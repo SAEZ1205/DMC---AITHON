@@ -10,7 +10,7 @@ Distingue cuatro situaciones:
 import re
 from dataclasses import dataclass
 
-from app.knowledge.intent_signals import is_definition_question, strip_style
+from app.knowledge.intent_signals import is_comparison_question, is_definition_question, strip_style
 from app.knowledge.text_utils import content_tokens, normalize_text, tokenize
 from app.llm.base import FollowUpMode
 
@@ -52,7 +52,7 @@ class MessageAnalysis:
     follow_up_mode: FollowUpMode
     refers_to_previous: bool  # contiene deícticos (eso, esto, anterior...)
     search_text: str = ""     # el mensaje sin frases de estilo ("de forma sencilla", "según lo enseñado..."): sirve para frases literales
-    kind: str = "other"       # definition | other: qué tipo de respuesta pide (ver app.knowledge.intent_signals)
+    kind: str = "other"       # definition | comparison | other: qué tipo de respuesta pide (ver app.knowledge.intent_signals)
 
 
 def analyze_message(message: str) -> MessageAnalysis:
@@ -60,7 +60,7 @@ def analyze_message(message: str) -> MessageAnalysis:
     all_tokens = set(tokens)
     core = strip_style(message)          # las frases de estilo no describen el tema: "forma sencilla" no debe traer segmentos
     own_terms = [t for t in content_tokens(core) if t not in IGNORABLE_WORDS]
-    kind = "definition" if is_definition_question(message) else "other"
+    kind = "comparison" if is_comparison_question(message) else ("definition" if is_definition_question(message) else "other")
 
     again = any(a == "otra" and b == "vez" for a, b in zip(tokens, tokens[1:]))  # "otra vez" = repetir
     if again:

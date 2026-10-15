@@ -105,3 +105,7 @@
 .demo-quiz-result .demo-quiz-score { font-size: 16px; font-weight: 600; }
 .demo-quiz-result.ok { background: #e6f7ec; border-color: #b7e2c6; color: #14663a; }
 .demo-quiz-result.warn { background: #fff7e0; border-color: #f0d58a; color: #7a5b00; }
+
+/* ---- Etapa 9: respuesta guardada y borrador de streaming ---- */
+.demo-pill.cached { background: #eef3ff; color: #2a4a9a; border-color: #bccdf2; }
+.demo-draft { margin-top: 6px; padding: 8px 10px; border: 1px dashed var(--border); border-radius: 8px; background: #fbfdfe; color: #5b6770; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }

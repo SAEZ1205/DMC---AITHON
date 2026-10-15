@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from app.knowledge.retriever import KnowledgeRetriever
 from app.llm.demo_provider import DemoProvider
 from app.main import create_app
-from app.services.tutor_service import HISTORY_MESSAGE_MAX_CHARS, HISTORY_WINDOW_MESSAGES
+from app.services.tutor_service import HISTORY_MESSAGE_MAX_CHARS, HISTORY_SENT_MESSAGES, HISTORY_WINDOW_MESSAGES
 
 from conftest import LESSON_1, LESSON_2, STUDENT_A, STUDENT_B, post_chat
 
@@ -218,10 +218,11 @@ def test_history_given_to_the_provider_is_bounded(db_path, retriever):
             post_chat(c, "otro ejemplo " + "x" * 900 if i == 0 else "no entendí", session_id=s)
     last = spy.contexts[-1]
     assert last.turn_number == 9
-    assert len(last.history) == HISTORY_WINDOW_MESSAGES
+    assert len(last.history) == HISTORY_SENT_MESSAGES == 2                          # solo el último turno viaja al modelo
     assert all(len(t.content) <= HISTORY_MESSAGE_MAX_CHARS for t in last.history)
-    assert [t.role for t in last.history] == ["student", "tutor"] * (HISTORY_WINDOW_MESSAGES // 2)
+    assert [t.role for t in last.history] == ["student", "tutor"]
     assert spy.contexts[0].history == []
+    assert HISTORY_WINDOW_MESSAGES >= HISTORY_SENT_MESSAGES
 
 
 # --------------------------------------------------------------- persistencia

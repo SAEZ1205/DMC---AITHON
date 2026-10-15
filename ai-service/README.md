@@ -4,6 +4,26 @@ Carpeta reservada para el módulo de inteligencia artificial y sus APIs.
 
 La idea es mantener esta lógica separada del frontend para que ambos equipos puedan trabajar sin pisarse archivos. Cuando el servicio esté listo, el frontend se conectará mediante endpoints definidos por el equipo de IA/backend.
 
+## Etapa 9: latencia del tutor
+
+Todo medido y probado **sin llamar a NVIDIA** (transporte simulado; la suite bloquea la red externa). Ninguna cifra de aquí es la velocidad real de Kimi.
+
+- **Instrumentación** (`app/services/latency.py`): cada respuesta trae `timing` (ms por etapa: `guardian`, `retrieval`, `prompt`, `egress`, `provider`, `verify`, `persist`, `total`;
+  contadores de caracteres/segmentos/tokens y un estado `live | cached | demo | demo_fallback | ...`). Solo números y estados: nunca texto. `/health` → `llm.latency` resume las últimas 200
+  (mediana, p90, máximo). El navegador añade lo que espera el estudiante (`⏱ servidor · Kimi · Primer texto · espera total`).
+- **Diagnóstico local:** el backend cuesta ~23 ms por pregunta (recuperación ~2, guardián ~1, prompt <1, privacidad ~1, verificación <1, guardado SQLite ~8). Todo lo demás de una respuesta LIVE es la
+  espera a NVIDIA (red + razonamiento + generación), que solo se puede medir con una solicitud real autorizada.
+- **Contexto reducido:** prompt de sistema 3.887 → 2.401 caracteres (v1.2.0, respuestas de 60 a 100 palabras); el historial solo viaja en seguimientos y es el último turno (2 mensajes, 300 caracteres cada uno);
+  1-2 segmentos salvo comparaciones y "otro ejemplo" (3); se quitó la línea "Turno de la sesión". Prompt medio medido: 5.420 → 3.838 caracteres (−29 %) (`scripts/measure_prompt_size.py`).
+  La consulta guardada de la sesión también se enmascara al reutilizarla.
+- **Caché de respuestas verificadas** (`app/services/answer_cache.py`, `ANSWER_CACHE_ENABLED`): solo generaciones LIVE nuevas y verificadas, de primera pregunta, sin historial ni datos personales. Clave = hash de pregunta
+  normalizada + clase + huella de la transcripción enmascarada + segmentos de evidencia + versión de recuperación + prompt + modelo + parámetros. No guarda pregunta, estudiante ni sesión. Se sirve como `mode=CACHED`
+  ("Respuesta guardada · generada antes por Kimi"), nunca como generación nueva.
+- **Streaming (opcional, apagado):** `POST /api/chat/stream` (SSE) con `CHAT_STREAMING_ENABLED=true` y `?stream=1` en la página. Envía un **borrador** provisional (sin etiquetas de cita, sin razonamiento) y termina con un
+  evento `final` que es la respuesta verificada con citas navegables; si la verificación falla, el `final` es el fallback DEMO. Cerrar la conexión cancela la llamada a NVIDIA. **No se ha probado contra NVIDIA real**:
+  la documentación pública muestra un cliente con `stream` y `Accept: text/event-stream` pero no documenta cómo llega el razonamiento en streaming.
+- **Comparación de modelos** (`scripts/compare_models.py`): por defecto solo muestra el plan; ejecutarla exige `--i-authorize-real-requests N` (y `--include-class-content` con la clase real). No se ejecutó.
+
 ## Etapa 8: Agente Validador — Participación Efectiva (simulación local)
 
 Pestaña **Validar aprendizaje** en `frontend/demo-n8n.html` (`frontend/validator-n8n.js`). Quiz de **2 preguntas** de opción múltiple sobre la clase real de n8n (09:18–10:10 y 25:44–26:15), verificadas contra la

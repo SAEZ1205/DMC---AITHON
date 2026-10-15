@@ -26,6 +26,8 @@
   // El backend limita la respuesta de Kimi a ~150 s por pregunta (ver la guía del jueves). El navegador espera un poco más que él y,
   // si aun así no hubo respuesta, cancela la solicitud en lugar de esperar para siempre.
   const CHAT_TIMEOUT_MS = 190000;
+  // Streaming (SSE): OPCIONAL y solo si se abre la página con ?stream=1 y el backend lo tiene activado; si no, se usa el chat normal.
+  const STREAMING = new URLSearchParams(location.search).get("stream") === "1";
   const SLOW_HINT_MS = 15000;
 
   function fmt(seconds) {
@@ -147,7 +149,7 @@
     return box;
   }
 
-  function renderTutor(reply) {
+  function renderTutor(reply, perceived) {
     const oos = reply.response_type === "out_of_scope";
     const box = addMessage("tutor", reply.response, oos ? "oos" : "");
 
@@ -166,9 +168,21 @@
 
     const meta = el("div", "meta");
     const live = reply.mode === "LIVE";
+    const cached = reply.mode === "CACHED";                  // guardada: verificada antes; NO es una generación nueva de Kimi
     const label = live ? `Respuesta: LIVE · ${reply.provider}${reply.model ? " · " + reply.model : ""}`
+      : cached ? `Respuesta guardada · generada antes por Kimi${reply.cached_at ? " (" + reply.cached_at.slice(0, 10) + ")" : ""}`
       : (reply.fallback_used ? "Respuesta DEMO · NO la generó Kimi" : "Respuesta: DEMO");
-    meta.append(el("span", "demo-pill" + (live ? " live" : (reply.fallback_used ? " warn" : "")), label));
+    meta.append(el("span", "demo-pill" + (live ? " live" : (cached ? " cached" : (reply.fallback_used ? " warn" : ""))), label));
+    const timing = reply.timing;                              // solo números del backend; lo que espera el estudiante lo mide el navegador
+    if (timing && Number.isFinite(timing.total_ms)) {
+      const parts = [`servidor ${(timing.total_ms / 1000).toFixed(1)} s`];
+      if (Number.isFinite(timing.provider_ms)) parts.push(`Kimi ${(timing.provider_ms / 1000).toFixed(1)} s`);
+      if (perceived && Number.isFinite(perceived.firstTextMs)) parts.push(`Primer texto ${(perceived.firstTextMs / 1000).toFixed(1)} s`);
+      if (perceived && Number.isFinite(perceived.waitMs)) parts.push(`espera total ${(perceived.waitMs / 1000).toFixed(1)} s`);
+      const pill = el("span", "demo-pill", "⏱ " + parts.join(" · "));
+      pill.title = "Tiempo del servidor, de Kimi y lo que esperaste en el navegador. Con streaming, «Primer texto» es cuándo viste las primeras palabras (un borrador).";
+      meta.append(pill);
+    }
     if (reply.fallback_used) box.classList.add("fallback");
     if (reply.guardian) {
       const g = reply.guardian;
@@ -202,7 +216,72 @@
         hint.textContent = "Kimi razona antes de responder y puede tardar hasta 2 minutos. No hace falta volver a enviar la pregunta.";
       }
     }, 1000);
-    return { stop() { clearInterval(timer); box.remove(); } };
+    let draft = null;
+    return {
+      /* Texto PROVISIONAL del streaming: se rotula como borrador y se sustituye por la respuesta verificada al terminar. */
+      appendDraft(text) {
+        if (!draft) {
+          const label = el("div", "demo-note", "Borrador en curso: se verificará al terminar y las citas aparecerán al final.");
+          draft = el("div", "demo-draft", "");
+          box.append(label, draft);
+          hint.textContent = "";
+        }
+        draft.textContent += text;                            // textContent: nunca se interpreta como HTML
+        $("messages").scrollTop = $("messages").scrollHeight;
+      },
+      stop() { clearInterval(timer); box.remove(); },
+    };
+  }
+
+  /* Lee un flujo SSE del backend y entrega cada evento {name, data}. Los comentarios (": keep-alive") se ignoran. */
+  async function readSse(response, onEvent) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let cut;
+      while ((cut = buffer.indexOf("\n\n")) !== -1) {
+        const frame = buffer.slice(0, cut);
+        buffer = buffer.slice(cut + 2);
+        let name = "message", data = "";
+        frame.split("\n").forEach((line) => {
+          if (line.startsWith("event:")) name = line.slice(6).trim();
+          else if (line.startsWith("data:")) data += line.slice(5).trim();
+        });
+        if (data) onEvent({ name, data: JSON.parse(data) });
+      }
+    }
+  }
+
+  async function streamChat(body, controller, pending, perceived, started) {
+    const response = await fetch(API + "/api/chat/stream", {
+      method: "POST", signal: controller.signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      let payload = null;
+      try { payload = await response.json(); } catch (_) { /* sin JSON */ }
+      const error = new Error(payload && payload.error ? payload.error.message : `Error HTTP ${response.status}`);
+      error.code = payload && payload.error ? payload.error.code : "http_error";
+      throw error;
+    }
+    let final = null;
+    await readSse(response, ({ name, data }) => {
+      if (name === "delta") {
+        if (perceived.firstTextMs === undefined) perceived.firstTextMs = performance.now() - started;
+        pending.appendDraft(data.text);
+      } else if (name === "final") {
+        final = data;
+      } else if (name === "error") {
+        const error = new Error(data.message);
+        error.code = data.code;
+        throw error;
+      }
+    });
+    if (!final) throw new Error("La respuesta terminó sin resultado verificado.");
+    return final;
   }
 
   function setBusy(on) {
@@ -220,18 +299,31 @@
     const pending = startPending(Boolean(lesson) && lesson.mode === "LIVE");
     const controller = new AbortController();
     const abortTimer = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
+    const started = performance.now();
+    const perceived = {};
+    const body = { student_id: STUDENT_ID, course_id: lesson.course_id, lesson_id: lesson.lesson_id, session_id: sessionId, message: text };
+    const normalChat = () => api("/api/chat", {
+      method: "POST",
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json", "Idempotency-Key": (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2)) },
+      body: JSON.stringify(body),
+    });
     try {
-      const reply = await api("/api/chat", {
-        method: "POST",
-        signal: controller.signal,
-        headers: { "Content-Type": "application/json", "Idempotency-Key": (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2)) },
-        body: JSON.stringify({
-          student_id: STUDENT_ID, course_id: lesson.course_id, lesson_id: lesson.lesson_id, session_id: sessionId, message: text,
-        }),
-      });
+      let reply;
+      if (STREAMING) {
+        try {
+          reply = await streamChat(body, controller, pending, perceived, started);
+        } catch (error) {
+          if (error && error.code === "streaming_disabled") reply = await normalChat();   // el backend no lo tiene activado: chat normal, sin perder la pregunta
+          else throw error;
+        }
+      } else {
+        reply = await normalChat();
+      }
+      perceived.waitMs = performance.now() - started;
       sessionId = reply.session_id;
       pending.stop();
-      renderTutor(reply);
+      renderTutor(reply, perceived);
     } catch (error) {
       pending.stop();
       const timedOut = error && error.name === "AbortError";

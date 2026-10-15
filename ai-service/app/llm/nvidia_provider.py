@@ -38,12 +38,14 @@ from app.llm.base import ResponseKind, TutorContext, TutorReply
 from app.llm.demo_provider import DemoProvider
 from app.llm.errors import (
     LLMAuthError, LLMContentNotAuthorized, LLMError, LLMMalformedResponse, LLMRateLimited, LLMRequestRejected,
-    LLMDeadlineExceeded, LLMTimeout, LLMUnavailable, LLMUnmaskedContent,
+    LLMDeadlineExceeded, LLMTimeout, LLMUnavailable, LLMUnmaskedContent, StreamCancelled,
 )
+from app.llm.answer_stream import AnswerStreamExtractor, ProvisionalText
 from app.llm.kimi_provider import KimiProvider, LiveCallBudget, SummaryPiece
 from app.llm.verification import parse_model_json
 from app.models.transcript import SegmentMatch
 from app.privacy import PrivacyFilter
+from app.services import latency
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +63,9 @@ CONNECT_SECONDS = 10.0            # conectar con NVIDIA nunca debería tardar m�
 # no se pisen: cada petición HTTP del servidor corre en su propio hilo/contexto. El valor lleva el id del proveedor dueño.
 _DEADLINE: "contextvars.ContextVar[Optional[Tuple[int, float, float]]]" = contextvars.ContextVar("nvidia_deadline", default=None)
 _CALL_CAP: "contextvars.ContextVar[Optional[float]]" = contextvars.ContextVar("nvidia_call_cap", default=None)
+# Gancho de streaming de la llamada del tutor en curso: (on_delta, should_cancel). Solo lo lee `_post` cuando NO es la llamada del guardián.
+_STREAM: "contextvars.ContextVar[Optional[Tuple[Callable[[str], None], Optional[Callable[[], bool]]]]]" = contextvars.ContextVar(
+    "nvidia_stream", default=None)
 
 
 def validate_base_url(url: str) -> str:
@@ -168,6 +173,87 @@ class NvidiaKimiProvider(KimiProvider):
         limit = max(limit, MIN_CALL_SECONDS)
         return httpx.Timeout(connect=min(CONNECT_SECONDS, limit), read=limit, write=min(15.0, limit), pool=min(CONNECT_SECONDS, limit)), limit
 
+    # ======================================================= streaming (opcional; apagado por defecto en la aplicación)
+    supports_streaming = True
+
+    def generate_stream(self, context: TutorContext, on_delta: Callable[[str], None],
+                        should_cancel: Optional[Callable[[], bool]] = None) -> TutorReply:
+        """
+        Igual que `generate`, pero la llamada al modelo se hace con `stream=true` y el texto provisional de «answer» se entrega a `on_delta`
+        a medida que llega. La respuesta FINAL (citas, minutos, verificación) es exactamente la de `generate`: el texto provisional no es una
+        referencia. `reasoning_content` se descarta; `should_cancel` corta la llamada (StreamCancelled) si el cliente se fue.
+        """
+        token = _STREAM.set((on_delta, should_cancel))
+        try:
+            return self.generate(context)
+        finally:
+            _STREAM.reset(token)
+
+    def _stream_request(self, url: str, body: Dict[str, Any], timeout: "httpx.Timeout", seconds: float,
+                        hook: Tuple[Callable[[str], None], Optional[Callable[[], bool]]]) -> Dict[str, Any]:
+        on_delta, should_cancel = hook
+        body = {**body, "stream": True}
+        headers = {**self._headers(), "Accept": "text/event-stream"}
+        extractor, provisional = AnswerStreamExtractor(), ProvisionalText()
+        content, reasoned, finish, usage, model = "", False, None, {}, None
+
+        def emit(text: str) -> None:
+            if text:
+                trace = latency.current()
+                if trace is not None:
+                    trace.mark_first_text()
+                on_delta(text)
+
+        try:
+            with latency.stage("provider_ms"):
+                with self._client.stream("POST", url, json=body, headers=headers, timeout=timeout) as response:
+                    if response.status_code >= 400:
+                        response.read()
+                        err = self._http_error(response)
+                        self._maybe_pause(err, response)
+                        raise err
+                    for line in response.iter_lines():
+                        if should_cancel is not None and should_cancel():
+                            raise StreamCancelled()
+                        scope = _DEADLINE.get()
+                        if scope is not None and scope[0] == id(self) and scope[1] - self._clock() <= 0:
+                            raise self._soft(LLMDeadlineExceeded("tiempo total agotado durante el streaming", None, public_message=(
+                                f"Se agotó el tiempo máximo para esta respuesta ({scope[2]:g} s).")))
+                        if not line.startswith("data:"):
+                            continue
+                        data = line[5:].strip()
+                        if data == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(data)
+                        except ValueError:
+                            continue
+                        if not isinstance(chunk, dict):
+                            continue
+                        model = chunk.get("model") or model
+                        if isinstance(chunk.get("usage"), dict):
+                            usage = chunk["usage"]
+                        choices = chunk.get("choices")
+                        choice = choices[0] if isinstance(choices, list) and choices and isinstance(choices[0], dict) else {}
+                        delta = choice.get("delta") if isinstance(choice.get("delta"), dict) else {}
+                        if delta.get("reasoning_content") or delta.get("reasoning"):
+                            reasoned = True                        # el razonamiento NUNCA se reenvía ni se guarda: solo se anota que existió
+                        piece = delta.get("content")
+                        if isinstance(piece, str) and piece:
+                            content += piece
+                            emit(provisional.push(extractor.feed(piece)))
+                        finish = choice.get("finish_reason") or finish
+        except httpx.TimeoutException as exc:
+            raise self._soft(LLMTimeout(f"timeout tras {seconds:g}s", None, public_message=f"NVIDIA no respondió en {seconds:g} s.")) from exc
+        except httpx.HTTPError as exc:
+            raise self._soft(LLMUnavailable(f"fallo de red: {type(exc).__name__}", None,
+                                            public_message="No se pudo conectar con NVIDIA (red o DNS).")) from exc
+        emit(provisional.flush())
+        message: Dict[str, Any] = {"role": "assistant", "content": content}
+        if reasoned:
+            message["reasoning_content"] = "(descartado)"
+        return {"model": model, "choices": [{"index": 0, "finish_reason": finish or "stop", "message": message}], "usage": usage}
+
     def classify_relevance(self, question: str, lesson_title: str, hints: Sequence[str]):
         """El guardián es una llamada pequeña con su propio tope: si tarda, se usa la heurística y el tutor conserva su tiempo."""
         token = _CALL_CAP.set(self.config.guardian_timeout_seconds)
@@ -180,7 +266,7 @@ class NvidiaKimiProvider(KimiProvider):
         """Límites activos para /health (sin credenciales)."""
         cfg = self.config
         return {"timeout_seconds": cfg.timeout_seconds, "total_timeout_seconds": cfg.total_timeout_seconds,
-                "guardian_timeout_seconds": cfg.guardian_timeout_seconds, "max_output_tokens": max(cfg.max_output_tokens, MIN_COMPLETION_TOKENS),
+                "guardian_timeout_seconds": cfg.guardian_timeout_seconds, "max_output_tokens": cfg.max_output_tokens if cfg.reasoning_effort == "none" else max(cfg.max_output_tokens, MIN_COMPLETION_TOKENS),
                 "reasoning_effort": cfg.reasoning_effort if cfg.reasoning_effort in EFFORTS else "low"}
 
     # =================================================== privacidad del contenido
@@ -297,8 +383,9 @@ class NvidiaKimiProvider(KimiProvider):
             "messages": messages,
             "max_completion_tokens": cfg.max_output_tokens,     # se renombra según NVIDIA_MAX_TOKENS_PARAM en _post
             "stream": False,
-            "reasoning_effort": cfg.reasoning_effort if cfg.reasoning_effort in EFFORTS else "low",
         }
+        if cfg.reasoning_effort != "none":          # "none" = modelo sin razonamiento (comparaciones): no se envía un parámetro propio de K3
+            payload["reasoning_effort"] = cfg.reasoning_effort if cfg.reasoning_effort in EFFORTS else "low"
         if cfg.json_mode:
             payload["response_format"] = {"type": "json_object"}
         return payload
@@ -308,16 +395,21 @@ class NvidiaKimiProvider(KimiProvider):
 
     def _post(self, payload: Dict[str, Any], enforce_floor: bool = True) -> Dict[str, Any]:
         self._raise_if_paused()
-        body = dict(self._guard_outgoing(payload))      # última barrera: nada sale sin pasar por el filtro de nombres
+        with latency.stage("egress_ms"):
+            body = dict(self._guard_outgoing(payload))      # última barrera: nada sale sin pasar por el filtro de nombres
         tokens = body.pop("max_completion_tokens", None)
         if tokens is not None:
-            if enforce_floor:
+            if enforce_floor and self.config.reasoning_effort != "none":
                 tokens = max(int(tokens), MIN_COMPLETION_TOKENS)
             body[self.config.max_tokens_param] = tokens
         url = f"{self.config.base_url}/chat/completions"
         timeout, seconds = self._effective_timeout()
+        hook = _STREAM.get() if (_CALL_CAP.get() is None and enforce_floor) else None
+        if hook is not None:
+            return self._stream_request(url, body, timeout, seconds, hook)
         try:
-            response = self._client.post(url, json=body, headers=self._headers(), timeout=timeout)
+            with latency.stage("guardian_provider_ms" if _CALL_CAP.get() is not None else "provider_ms"):
+                response = self._client.post(url, json=body, headers=self._headers(), timeout=timeout)
         except httpx.TimeoutException as exc:
             raise self._soft(LLMTimeout(f"timeout tras {seconds:g}s", None,
                                         public_message=f"NVIDIA no respondió en {seconds:g} s.")) from exc
